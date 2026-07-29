@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>每日管理</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f0f2f5;--card:#fff;--primary:#4a90d9;--primary-bg:#e8f1fc;
+  --success:#52c41a;--success-bg:#f0fce8;--danger:#ff4d4f;--danger-bg:#fff1f0;
+  --text:#1a1a1a;--text2:#888;--border:#eee;--radius:12px;
+  --nav-w:72px;--shadow:0 2px 8px rgba(0,0,0,.06);
+  --warn:#faad14;--warn-bg:#fffbe6;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.6;overflow-x:hidden}
+
+/* ===== Sidebar ===== */
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:var(--nav-w);background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;padding-top:4px;overflow-y:auto}
+.sidebar-footer{margin-top:auto;padding:8px 0 6px;border-top:1px solid var(--border)}
+.download-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 2px;color:var(--warn);cursor:pointer;font-size:9px;letter-spacing:.3px}
+.download-btn .icon{font-size:18px}
+.download-btn:active{background:var(--warn-bg)}
+.nav-item{min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;transition:all .2s;color:var(--text2);position:relative;padding:4px 2px}
+.nav-item .icon{font-size:20px}
+.nav-item .label{font-size:9px;letter-spacing:.3px}
+.nav-item.active{color:var(--primary);background:var(--primary-bg)}
+.nav-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:24px;background:var(--primary);border-radius:0 3px 3px 0}
+
+/* ===== Content ===== */
+.content{margin-left:var(--nav-w);min-height:100vh;padding:16px 14px 40px}
+.page{display:none;animation:fadeIn .3s}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.page-header{margin-bottom:16px}
+.page-header .date{font-size:13px;color:var(--text2)}
+.page-header h2{font-size:20px;font-weight:700;margin-top:2px}
+
+/* ===== Cards ===== */
+.card{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.card-title{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+
+/* ===== Checkboxes ===== */
+.task-item{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border)}
+.task-item:last-child{border-bottom:none}
+.checkbox{width:24px;height:24px;border:2px solid #ddd;border-radius:6px;flex-shrink:0;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center}
+.checkbox.checked{background:var(--success);border-color:var(--success)}
+.checkbox.checked::after{content:'';width:7px;height:12px;border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg) translate(-1px,-1px)}
+.task-text{flex:1;font-size:15px;transition:all .2s}
+.task-text.done{text-decoration:line-through;color:var(--text2)}
+.task-del{color:var(--danger);font-size:18px;cursor:pointer;padding:4px 8px;opacity:.6}
+.task-del:active{opacity:1}
+
+/* ===== Inputs & Buttons ===== */
+.input-row{display:flex;gap:8px;margin-top:12px}
+input[type=text],input[type=number],textarea,select{width:100%;border:1px solid var(--border);border-radius:8px;padding:11px 14px;font-size:15px;font-family:inherit;background:#fafafa;outline:none;transition:border .2s}
+input:focus,textarea:focus,select:focus{border-color:var(--primary);background:#fff}
+textarea{resize:vertical;min-height:80px}
+select{appearance:auto;padding:11px 14px}
+.btn{border:none;border-radius:8px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:active{transform:scale(.97)}
+.btn-sm{padding:7px 14px;font-size:13px}
+.btn-danger-sm{background:transparent;border:1px solid var(--danger);color:var(--danger);padding:7px 14px;font-size:13px;font-weight:600;border-radius:8px;cursor:pointer;font-family:inherit}
+
+/* ===== Progress ===== */
+.progress-bar{width:100%;height:10px;background:#eee;border-radius:5px;overflow:hidden;margin:8px 0}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--primary),#69b7e8);border-radius:5px;transition:width .4s ease}
+.progress-info{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--text2)}
+.progress-info .big{font-size:22px;font-weight:700;color:var(--text)}
+
+/* ===== Exercise ===== */
+.period-label{font-size:13px;font-weight:600;color:var(--primary);margin:4px 0 2px;padding-left:4px}
+.ex-item{display:flex;align-items:center;gap:10px;padding:12px;background:#fafafa;border-radius:8px;margin-bottom:8px;flex-wrap:wrap}
+.ex-item .time{font-size:12px;color:var(--text2);min-width:85px}
+.ex-item .type{font-size:14px;font-weight:500}
+.ex-item .dur{font-size:12px;color:var(--text2)}
+.ex-detail-row{width:100%;margin-top:6px}
+.ex-detail-row input{font-size:13px;padding:8px 10px;border-radius:6px}
+
+/* ===== English ===== */
+.en-item{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border)}
+.en-item:last-child{border-bottom:none}
+.en-info{flex:1}
+.en-name{font-size:15px;font-weight:500}
+.en-name.done{text-decoration:line-through;color:var(--text2)}
+.en-count-row{display:flex;align-items:center;gap:8px;margin-top:4px}
+.en-count-row input{width:70px;padding:6px 10px;font-size:14px}
+.en-count-row .unit{font-size:12px;color:var(--text2)}
+.movie-name-tag{display:inline-block;background:#fff3cd;color:#856404;font-size:11px;padding:2px 8px;border-radius:8px;margin-left:6px;font-weight:600}
+
+/* ===== Novel ===== */
+.novel-toolbar{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.novel-toolbar button{border:1px solid var(--border);background:#fafafa;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.novel-toolbar button:active{background:var(--primary-bg)}
+.novel-editor{width:100%;min-height:300px;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:15px;line-height:1.8;outline:none;background:#fafafa}
+.novel-editor:focus{border-color:var(--primary);background:#fff}
+.novel-editor:empty::before{content:attr(data-placeholder);color:var(--text2);pointer-events:none}
+.novel-stats{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+.stat-box{flex:1;min-width:80px;background:#fafafa;border-radius:8px;padding:12px;text-align:center}
+.stat-box .num{font-size:24px;font-weight:700}
+.stat-box .lbl{font-size:12px;color:var(--text2);margin-top:2px}
+.speed-box{background:#fff3cd;border-radius:8px;padding:12px;text-align:center;min-width:80px;flex:1}
+.speed-box .num{font-size:24px;font-weight:700;color:#856404}
+.speed-box .lbl{font-size:12px;color:#856404;margin-top:2px}
+
+/* ===== Work ===== */
+.work-cat{background:#fafafa;border-radius:10px;padding:14px;margin-bottom:12px}
+.work-cat-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.work-cat-header .cat-name{flex:1;font-size:15px;font-weight:600;cursor:pointer}
+.work-cat-header .cat-name:hover{color:var(--primary)}
+.work-cat-header .cat-del{color:var(--danger);font-size:13px;cursor:pointer;padding:4px 8px}
+.subtask{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f0f0f0}
+.subtask:last-child{border-bottom:none}
+.subtask .checkbox{width:20px;height:20px}
+.subtask .st-text{flex:1;font-size:14px}
+.subtask .st-text.done{text-decoration:line-through;color:var(--text2)}
+.subtask .st-del{color:var(--danger);font-size:16px;cursor:pointer;padding:2px 6px;opacity:.5}
+.sub-add-row{display:flex;gap:6px;margin-top:8px}
+.sub-add-row input{padding:8px 10px;font-size:13px}
+.work-add-row{display:flex;gap:8px;margin-top:14px}
+.work-add-row input{padding:11px 14px;font-size:15px}
+.cat-edit-input{width:100%;padding:8px 10px;font-size:14px;border:1px solid var(--primary);border-radius:6px;background:#fff;outline:none}
+
+/* ===== Budget ===== */
+.budget-summary{display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.budget-box{flex:1;min-width:100px;background:#fafafa;border-radius:8px;padding:12px;text-align:center}
+.budget-box .num{font-size:22px;font-weight:700}
+.budget-box .lbl{font-size:12px;color:var(--text2);margin-top:2px}
+.budget-box.inc .num{color:var(--success)}
+.budget-box.exp .num{color:var(--danger)}
+.budget-box.bal .num{color:var(--primary)}
+.entry-form{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
+.entry-form select{width:auto;min-width:80px;padding:8px 10px;font-size:13px}
+.entry-form input{width:auto;min-width:80px;padding:8px 10px;font-size:13px}
+.mood-row{display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.mood-btn{font-size:20px;cursor:pointer;padding:4px;border-radius:6px;transition:background .2s}
+.mood-btn.sel{background:var(--primary-bg)}
+.entry-item{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px}
+.entry-item:last-child{border-bottom:none}
+.entry-type{font-size:11px;padding:2px 8px;border-radius:8px;font-weight:600}
+.entry-type.inc{background:var(--success-bg);color:var(--success)}
+.entry-type.exp{background:var(--danger-bg);color:var(--danger)}
+.entry-amount{font-weight:600;min-width:60px}
+.entry-cat{color:var(--text2);font-size:13px}
+.entry-mood{font-size:16px}
+.entry-note{color:var(--text2);font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.entry-del{color:var(--danger);cursor:pointer;font-size:16px;opacity:.5;padding:2px 6px}
+
+/* ===== Travel ===== */
+.travel-card{background:#fafafa;border-radius:10px;padding:14px;margin-bottom:12px}
+.travel-card img{width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin:8px 0}
+.travel-card .t-name{font-size:16px;font-weight:700}
+.travel-card .t-location{font-size:13px;color:var(--text2);margin-top:2px}
+.travel-card .t-desc{font-size:14px;margin-top:6px;line-height:1.7}
+.travel-card-header{display:flex;align-items:center;gap:8px}
+.travel-card-header .t-del{color:var(--danger);font-size:13px;cursor:pointer;padding:4px 8px}
+.travel-img-upload{position:relative;overflow:hidden;display:inline-block}
+.travel-img-upload input[type=file]{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.travel-img-upload .upload-btn{display:inline-flex;align-items:center;gap:4px;padding:8px 16px;background:var(--primary-bg);color:var(--primary);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+
+/* ===== Planning ===== */
+.plan-period{background:#fafafa;border-radius:10px;padding:14px;margin-bottom:12px}
+.plan-period .period-name{font-size:14px;font-weight:700;color:var(--primary);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.plan-period .period-name .done-badge{font-size:11px;background:var(--success-bg);color:var(--success);padding:1px 6px;border-radius:8px}
+.plan-goal{margin-bottom:10px}
+.plan-goal textarea{min-height:60px;font-size:14px}
+
+/* ===== Review ===== */
+.review-tabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}
+.review-tab{flex:1;text-align:center;padding:9px 2px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;background:#fff;border:1px solid var(--border)}
+.review-tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.review-summary{background:var(--primary-bg);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;line-height:2}
+.review-summary .stat-line{display:flex;justify-content:space-between}
+.review-summary .stat-line .val{font-weight:600;color:var(--primary)}
+
+/* ===== Calendar ===== */
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-nav .cal-title{font-size:16px;font-weight:700}
+.cal-nav .cal-arrow{font-size:18px;cursor:pointer;padding:4px 10px;color:var(--primary);font-weight:700;border-radius:6px;transition:background .2s}
+.cal-nav .cal-arrow:active{background:var(--primary-bg)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}
+.cal-weekday{font-size:11px;color:var(--text2);padding:6px 0;font-weight:600}
+.cal-day{font-size:13px;padding:7px 2px;border-radius:8px;cursor:pointer;position:relative;transition:all .15s;line-height:1.4}
+.cal-day:active{background:var(--primary-bg)}
+.cal-day.today{background:var(--primary);color:#fff;font-weight:700;border-radius:8px}
+.cal-day.has-data::after{content:'';position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:4px;height:4px;background:var(--success);border-radius:50%}
+.cal-day.today.has-data::after{background:#fff}
+.cal-day.other-month{color:#ccc;cursor:default}
+.cal-day.other-month:active{background:transparent}
+.cal-day.selected{background:var(--primary-bg);font-weight:600;border-radius:8px}
+.cal-day.selected.today{background:var(--primary);color:#fff}
+.cal-day-info{background:var(--card);border-radius:var(--radius);padding:14px;margin-top:12px;box-shadow:var(--shadow)}
+.cal-day-info h3{font-size:15px;font-weight:700;margin-bottom:8px}
+.cal-summary-btn{display:inline-flex;align-items:center;gap:4px;padding:8px 16px;background:var(--primary-bg);color:var(--primary);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px}
+.cal-summary-btn:active{background:var(--primary);color:#fff}
+
+/* ===== Mood Diary ===== */
+.mood-emoji-row{display:flex;justify-content:center;gap:12px;margin-bottom:14px}
+.mood-emoji{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;border:3px solid var(--border);transition:all .2s;background:#fff}
+.mood-emoji.active{border-color:var(--primary);background:var(--primary-bg);transform:scale(1.15)}
+.mood-emoji:active{transform:scale(.9)}
+.mood-trend{margin-top:14px}
+.mood-trend-title{font-size:14px;font-weight:600;margin-bottom:8px}
+.mood-trend-chart{display:flex;align-items:flex-end;gap:6px;height:100px;padding:8px 0}
+.mood-bar{flex:1;min-width:0;border-radius:6px 6px 0 0;transition:height .3s;display:flex;align-items:flex-end;justify-content:center;font-size:16px;padding:4px 0}
+.mood-bar-date{font-size:10px;color:var(--text2);text-align:center;margin-top:4px}
+.mood-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.mood-stat-item{background:var(--primary-bg);border-radius:8px;padding:10px;text-align:center;font-size:13px}
+.mood-stat-item .num{font-size:20px;font-weight:700;color:var(--primary)}
+
+/* ===== Goal Progress ===== */
+.goal-ring-container{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.goal-ring{background:var(--card);border-radius:var(--radius);padding:14px;text-align:center;box-shadow:var(--shadow)}
+.goal-ring-label{font-size:13px;font-weight:600;margin-bottom:8px}
+.goal-ring-svg{width:80px;height:80px;margin:0 auto}
+.goal-ring-pct{font-size:14px;font-weight:700;margin-top:4px}
+.goal-ring-pct.red{color:var(--danger)}
+.goal-ring-pct.yellow{color:var(--warn)}
+.goal-ring-pct.green{color:var(--success)}
+.goal-total-ring{margin-bottom:14px;text-align:center;background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.goal-total-svg{width:120px;height:120px;margin:0 auto}
+.goal-total-label{font-size:16px;font-weight:700;margin-top:8px}
+
+/* ===== Data Export ===== */
+.export-section{margin-bottom:14px}
+.export-btn{display:flex;align-items:center;gap:8px;padding:14px;background:var(--card);border-radius:var(--radius);cursor:pointer;box-shadow:var(--shadow);transition:all .2s;margin-bottom:8px;width:100%}
+.export-btn:active{background:var(--primary-bg)}
+.export-btn .export-icon{font-size:24px}
+.export-btn .export-info{text-align:left}
+.export-btn .export-info .title{font-size:15px;font-weight:600}
+.export-btn .export-info .desc{font-size:12px;color:var(--text2)}
+.export-btn.danger{border:1px solid var(--danger-bg)}
+.import-file-input{display:none}
+
+/* ===== Toast ===== */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:rgba(0,0,0,.75);color:#fff;padding:10px 22px;border-radius:20px;font-size:13px;z-index:9999;transition:transform .3s;pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ===== Misc ===== */
+.movie-entry{display:flex;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid #f0f0f0;flex-wrap:wrap}
+.movie-entry:last-child{border-bottom:none}
+.movie-emoji{font-size:16px}
+.empty{text-align:center;color:var(--text2);padding:20px 0;font-size:14px}
+.add-task-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;border:1px dashed #ccc;border-radius:8px;color:var(--text2);cursor:pointer;font-size:14px;margin-top:10px;transition:all .2s}
+.add-task-btn:active{border-color:var(--primary);color:var(--primary)}
+.badge{display:inline-block;background:var(--success-bg);color:var(--success);font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
+.section-gap{height:8px}
+
+@media(min-width:600px){
+  :root{--nav-w:180px}
+  .nav-item{flex-direction:row;justify-content:flex-start;padding:0 14px;gap:8px;min-height:44px}
+  .nav-item .label{font-size:13px}
+  .nav-item .icon{font-size:18px}
+  .nav-item.active::before{height:100%;top:0;transform:none;width:3px}
+  .content{max-width:680px;margin-left:var(--nav-w);padding:24px}
+}
+</style>
+</head>
+<body>
+<nav class="sidebar" id="sidebar"></nav>
+<main class="content" id="content"></main>
+<div class="toast" id="toast"></div>
+
+<script>
+// ===================== CONFIG =====================
+const STORAGE_KEY = 'daily_mgr_v3';
+const DAILY_GOAL = 10000;
+
+const NAV = [
+  {id:'plan',icon:'📋',label:'计划'},
+  {id:'exercise',icon:'💪',label:'锻炼'},
+  {id:'english',icon:'📖',label:'英语'},
+  {id:'novel',icon:'✍️',label:'小说'},
+  {id:'work',icon:'💼',label:'工作'},
+  {id:'budget',icon:'💰',label:'记账'},
+  {id:'travel',icon:'🌍',label:'旅行'},
+  {id:'planning',icon:'🎯',label:'规划'},
+  {id:'review',icon:'📊',label:'复盘'},
+  {id:'mood',icon:'😊',label:'心情'},
+  {id:'goal',icon:'📈',label:'目标'},
+  {id:'export',icon:'📤',label:'导出'},
+];
+
+const DEFAULT_TASKS = [
+  {id:'f1',text:'锻炼',done:false,fixed:true},
+  {id:'f2',text:'学英语',done:false,fixed:true},
+  {id:'f3',text:'写小说',done:false,fixed:true},
+  {id:'f4',text:'工作整理',done:false,fixed:true},
+];
+
+const EXERCISE = [
+  {id:'am_str',period:'上午训练',time:'10:00–10:30',type:'力量训练',dur:'30分钟'},
+  {id:'am_car',period:'上午训练',time:'10:30–11:00',type:'有氧训练',dur:'30分钟'},
+  {id:'pm_str',period:'晚上训练',time:'19:30–20:00',type:'力量训练',dur:'30分钟'},
+  {id:'pm_car',period:'晚上训练',time:'20:00–20:30',type:'有氧训练',dur:'30分钟'},
+];
+
+const ENGLISH = [
+  {id:'nc1',name:'新概念第一册',hasCount:true},
+  {id:'nc2',name:'新概念第二册',hasCount:true},
+  {id:'nc3',name:'新概念第三册',hasCount:true},
+  {id:'movie',name:'英文电影整理'},
+];
+
+const EXPENSE_CATS = ['餐饮','交通','购物','娱乐','住房','医疗','教育','通讯','其他'];
+const INCOME_CATS = ['工资','副业','投资','礼金','其他'];
+const MOODS = ['😊','😐','😢','😡','🤑','💪','😍','🤔','😰','😎'];
+const WEEKDAYS = ['日','一','二','三','四','五','六'];
+
+const PLANNING_PERIODS = [
+  {id:'1w',name:'近1周'},
+  {id:'1m',name:'1个月'},
+  {id:'3m',name:'3个月'},
+  {id:'6m',name:'6个月'},
+  {id:'1y',name:'1年'},
+  {id:'3y',name:'3年'},
+  {id:'5y',name:'5年'},
+];
+
+// ===================== UTILS =====================
+function dateKey(d){d=d||new Date();var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+day}
+function weekKey(d){d=d||new Date();var day=d.getDay()||7;d=new Date(d);d.setDate(d.getDate()-day+1);return dateKey(d)}
+function monthKey(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function yearKey(d){d=d||new Date();return String(d.getFullYear())}
+function fmtDate(d){d=d||new Date();return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日 星期'+WEEKDAYS[d.getDay()]}
+function fmtDateShort(k){var p=k.split('-');return p[1]+'月'+p[2]+'日'}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+var debounceTimer={};
+function debounce(fn,key,ms){ms=ms||500;clearTimeout(debounceTimer[key]);debounceTimer[key]=setTimeout(fn,ms)}
+function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},1500)}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+// ===================== STORAGE =====================
+function loadData(){
+  // Migration from v2
+  try{
+    var v2 = JSON.parse(localStorage.getItem('daily_mgr_v2'));
+    if(v2){
+      v2.budget = v2.budget || {};
+      v2.travel = v2.travel || {destinations:[]};
+      v2.planning = v2.planning || {};
+      v2.review = v2.review || {daily:{},weekly:{},otherWork:{}};
+      if(!v2.review.otherWork) v2.review.otherWork = {};
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(v2));
+      localStorage.removeItem('daily_mgr_v2');
+    }
+  }catch(e){}
+  try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||{}}catch(e){return {}}
+}
+function saveData(d){localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}
+var D = loadData();
+function save(){saveData(D)}
+
+function ensurePlan(date){if(!D.plan)D.plan={};if(!D.plan[date])D.plan[date]=JSON.parse(JSON.stringify(DEFAULT_TASKS));return D.plan[date]}
+function ensureExercise(date){if(!D.exercise)D.exercise={};if(!D.exercise[date])D.exercise[date]={items:{},details:{},notes:''};if(!D.exercise[date].details)D.exercise[date].details={};return D.exercise[date]}
+function ensureEnglish(date){if(!D.english)D.english={};if(!D.english[date])D.english[date]={nc1:{done:false,count:0},nc2:{done:false,count:0},nc3:{done:false,count:0},movie:{done:false,totalMinutes:0,movies:[]}};if(D.english[date].movie&&!D.english[date].movie.movies){D.english[date].movie.movies=[];if(D.english[date].movie.movieName||D.english[date].movie.minutes){D.english[date].movie.movies.push({id:uid(),name:D.english[date].movie.movieName||'',minutes:D.english[date].movie.minutes||0});D.english[date].movie.totalMinutes=D.english[date].movie.minutes||0};D.english[date].movie.movieName=undefined;D.english[date].movie.minutes=undefined};return D.english[date]}
+function ensureNovel(){if(!D.novel)D.novel={content:'',baseline:{}};return D.novel}
+function ensureWork(){if(!D.work)D.work={categories:[]};return D.work}
+function ensureBudget(date){if(!D.budget)D.budget={};if(!D.budget[date])D.budget[date]={entries:[]};return D.budget[date]}
+function ensureTravel(){if(!D.travel)D.travel={destinations:[]};return D.travel}
+function ensurePlanning(){if(!D.planning)D.planning={};PLANNING_PERIODS.forEach(function(p){if(!D.planning[p.id])D.planning[p.id]={goal:'',tasks:[]}});return D.planning}
+function ensureReview(){if(!D.review)D.review={daily:{},weekly:{},monthly:{},yearly:{},otherWork:{}};if(!D.review.otherWork)D.review.otherWork={};if(!D.review.monthly)D.review.monthly={};if(!D.review.yearly)D.review.yearly={};return D.review}
+
+// ===================== NAVIGATION =====================
+var currentPage = 'plan';
+function renderSidebar(){
+  var sb=document.getElementById('sidebar');
+  sb.innerHTML=NAV.map(function(n){return '<div class="nav-item'+(n.id===currentPage?' active':'')+'" data-page="'+n.id+'"><span class="icon">'+n.icon+'</span><span class="label">'+n.label+'</span></div>'}).join('');
+  sb.innerHTML+='<div class="sidebar-footer"><div class="download-btn" id="download-btn"><span class="icon">⬇️</span><span class="label">下载</span></div></div>';
+  sb.querySelectorAll('.nav-item').forEach(function(el){el.addEventListener('click',function(){currentPage=el.dataset.page;renderSidebar();renderPage()})});
+  document.getElementById('download-btn').addEventListener('click',downloadApp);
+}
+function renderPage(){
+  var c=document.getElementById('content');
+  var html='<div class="page active" id="page-'+currentPage+'">';
+  html+='<div class="page-header"><div class="date">'+fmtDate()+'</div><h2>'+NAV.find(function(n){return n.id===currentPage}).label+'</h2></div>';
+  if(currentPage==='plan')html+=renderPlan();
+  else if(currentPage==='exercise')html+=renderExercise();
+  else if(currentPage==='english')html+=renderEnglish();
+  else if(currentPage==='novel')html+=renderNovel();
+  else if(currentPage==='work')html+=renderWork();
+  else if(currentPage==='budget')html+=renderBudget();
+  else if(currentPage==='travel')html+=renderTravel();
+  else if(currentPage==='planning')html+=renderPlanning();
+  else if(currentPage==='review')html+=renderReview();
+  else if(currentPage==='mood')html+=renderMood();
+  else if(currentPage==='goal')html+=renderGoal();
+  else if(currentPage==='export')html+=renderExport();
+  html+='</div>';
+  c.innerHTML=html;
+  if(currentPage==='plan')initPlan();
+  else if(currentPage==='exercise')initExercise();
+  else if(currentPage==='english')initEnglish();
+  else if(currentPage==='novel')initNovel();
+  else if(currentPage==='work')initWork();
+  else if(currentPage==='budget')initBudget();
+  else if(currentPage==='travel')initTravel();
+  else if(currentPage==='planning')initPlanning();
+  else if(currentPage==='review')initReview();
+  else if(currentPage==='mood')initMood();
+  else if(currentPage==='goal')initGoal();
+  else if(currentPage==='export')initExport();
+}
+
+// ===================== PAGE: PLAN =====================
+function renderPlan(){
+  var dk=dateKey();var tasks=ensurePlan(dk);var done=tasks.filter(function(t){return t.done}).length;var total=tasks.length;
+  var html='<div class="card"><div class="card-title">今日待办 <span class="badge">'+done+'/'+total+'</span></div>';
+  tasks.forEach(function(t,i){html+='<div class="task-item" data-idx="'+i+'"><div class="checkbox'+(t.done?' checked':'')+'" data-action="toggle"></div><span class="task-text'+(t.done?' done':'')+'">'+esc(t.text)+'</span><span class="task-del" data-action="del">✕</span></div>'});
+  html+='</div>';
+  html+='<div class="input-row"><input type="text" id="plan-input" placeholder="添加新任务..." maxlength="50"><button class="btn btn-primary btn-sm" id="plan-add">添加</button></div>';
+  return html;
+}
+function initPlan(){
+  var dk=dateKey();var tasks=ensurePlan(dk);var card=document.querySelector('#page-plan .card');
+  card.querySelectorAll('.task-item').forEach(function(el){var idx=parseInt(el.dataset.idx);
+    el.querySelector('[data-action=toggle]').addEventListener('click',function(){tasks[idx].done=!tasks[idx].done;save();renderPage();toast(tasks[idx].done?'已完成':'取消完成')});
+    el.querySelector('[data-action=del]').addEventListener('click',function(){tasks.splice(idx,1);save();renderPage();toast('已删除')});
+  });
+  var input=document.getElementById('plan-input');var addBtn=document.getElementById('plan-add');
+  function addTask(){var v=input.value.trim();if(!v)return;tasks.push({id:uid(),text:v,done:false,fixed:false});input.value='';save();renderPage();toast('已添加')}
+  addBtn.addEventListener('click',addTask);input.addEventListener('keydown',function(e){if(e.key==='Enter')addTask()});
+}
+
+// ===================== PAGE: EXERCISE =====================
+function renderExercise(){
+  var dk=dateKey();var ex=ensureExercise(dk);var done=EXERCISE.filter(function(e){return ex.items[e.id]}).length;
+  var html='<div class="card"><div class="card-title">今日训练 <span class="badge">'+done+'/4</span></div>';
+  var lastPeriod='';
+  EXERCISE.forEach(function(e){
+    if(e.period!==lastPeriod){html+='<div class="period-label">'+e.period+'</div>';lastPeriod=e.period}
+    var isDone=ex.items[e.id];var detail=ex.details[e.id]||'';
+    html+='<div class="ex-item" data-id="'+e.id+'"><div class="checkbox'+(isDone?' checked':'')+'" data-action="toggle"></div><span class="time">'+e.time+'</span><span class="type'+(isDone?' done':'')+'">'+e.type+'</span><span class="dur">'+e.dur+'</span><div class="ex-detail-row"><input type="text" data-action="detail" placeholder="记录具体内容（如：俯卧撑30个）" value="'+esc(detail)+'" /></div></div>';
+  });
+  html+='</div>';
+  html+='<div class="card"><div class="card-title">训练备注</div><textarea id="ex-notes" placeholder="记录今日训练感受..." maxlength="500">'+esc(ex.notes)+'</textarea></div>';
+  return html;
+}
+function initExercise(){
+  var dk=dateKey();var ex=ensureExercise(dk);
+  document.querySelectorAll('#page-exercise .ex-item').forEach(function(el){var id=el.dataset.id;
+    el.querySelector('[data-action=toggle]').addEventListener('click',function(){ex.items[id]=!ex.items[id];save();renderPage();toast(ex.items[id]?'打卡成功':'取消打卡')});
+    var detailInput=el.querySelector('[data-action=detail]');detailInput.addEventListener('input',function(){ex.details[id]=detailInput.value;debounce(function(){save();toast('已保存')},'ex_d_'+id,300)});detailInput.addEventListener('click',function(e){e.stopPropagation()});
+  });
+  var notes=document.getElementById('ex-notes');notes.addEventListener('input',function(){ex.notes=notes.value;debounce(function(){save();toast('已保存')},'ex_notes')});
+}
+
+// ===================== PAGE: ENGLISH =====================
+function renderEnglish(){
+  var dk=dateKey();var en=ensureEnglish(dk);var done=0;
+  var ncItems=[en.nc1,en.nc2,en.nc3];ncItems.forEach(function(item){if(item.done)done++});
+  if(en.movie.done||(en.movie.movies&&en.movie.movies.length>0))done++;
+  var totalDone=0;ENGLISH.forEach(function(e,i){var item=i<3?ncItems[i]:en.movie;if(item.done||(i===3&&item.movies&&item.movies.length>0))totalDone++});
+  var html='<div class="card"><div class="card-title">今日英语学习 <span class="badge">'+totalDone+'/4</span></div>';
+  // NC1-3
+  var ncList=[{id:'nc1',name:'新概念第一册',item:en.nc1},{id:'nc2',name:'新概念第二册',item:en.nc2},{id:'nc3',name:'新概念第三册',item:en.nc3}];
+  ncList.forEach(function(nc){
+    html+='<div class="en-item" data-id="'+nc.id+'"><div class="checkbox'+(nc.item.done?' checked':'')+'" data-action="toggle"></div><div class="en-info"><div class="en-name'+(nc.item.done?' done':'')+'">'+nc.name+'</div><div class="en-count-row"><span style="font-size:12px;color:var(--text2)">今日背诵篇数：</span><input type="number" min="0" value="'+(nc.item.count||0)+'" data-action="count" /><span class="unit">篇</span></div></div></div>';
+  });
+  // Movie section
+  var movieChecked=en.movie.done;
+  html+='<div class="en-item" data-id="movie"><div class="checkbox'+(movieChecked?' checked':'')+'" data-action="toggle"></div><div class="en-info"><div class="en-name'+(movieChecked?' done':'')+'">英文电影整理</div>';
+  // Existing movies list
+  if(en.movie.movies&&en.movie.movies.length>0){
+    html+='<div class="movie-list">';
+    en.movie.movies.forEach(function(mv,i){
+      html+='<div class="movie-entry" data-mi="'+i+'"><span class="movie-emoji">🎬</span><input type="text" value="'+esc(mv.name)+'" data-action="mvname" placeholder="电影名" style="width:140px;padding:6px 8px;font-size:13px" /><input type="number" min="0" value="'+(mv.minutes||0)+'" data-action="mvmin" placeholder="分钟" style="width:60px;padding:6px 8px;font-size:13px" /><span style="font-size:12px;color:var(--text2)">分钟</span><span class="mv-del" data-action="mvdel" style="color:var(--danger);cursor:pointer;font-size:16px;padding:2px 6px;opacity:.6">✕</span></div>';
+    });
+    html+='</div>';
+  }
+  // Add movie button
+  html+='<div class="add-task-btn" data-action="addmovie" style="margin-top:8px;font-size:13px;padding:10px"><span style="font-size:16px">＋</span> 添加一部电影</div>';
+  html+='</div></div>';
+  html+='</div>';
+  // Progress stats
+  var totalEssays=(en.nc1.count||0)+(en.nc2.count||0)+(en.nc3.count||0);
+  var movieTotalMin=0;var movieNames=[];
+  if(en.movie.movies){en.movie.movies.forEach(function(mv){movieTotalMin+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})};
+  html+='<div class="card"><div class="card-title">进度统计</div><div class="progress-info"><span>今日背诵总篇数</span><span class="big">'+totalEssays+'</span></div><div class="section-gap"></div><div class="progress-info"><span>新概念一册</span><span>'+(en.nc1.count||0)+' 篇</span></div><div class="progress-info"><span>新概念二册</span><span>'+(en.nc2.count||0)+' 篇</span></div><div class="progress-info"><span>新概念三册</span><span>'+(en.nc3.count||0)+' 篇</span></div><div class="section-gap"></div><div class="progress-info"><span>英文电影整理</span><span>'+movieTotalMin+' 分钟</span></div>';
+  if(movieNames.length>0)html+='<div class="progress-info"><span>今日整理的电影</span><span style="color:#856404;font-weight:600">🎬 '+esc(movieNames.join('、'))+'</span></div>';
+  html+='</div>';
+  return html;
+}
+function initEnglish(){
+  var dk=dateKey();var en=ensureEnglish(dk);
+  // NC checkbox + count
+  var ncList=[{id:'nc1',item:en.nc1},{id:'nc2',item:en.nc2},{id:'nc3',item:en.nc3}];
+  ncList.forEach(function(nc){
+    var el=document.querySelector('.en-item[data-id="'+nc.id+'"]');
+    if(!el)return;
+    el.querySelector('[data-action=toggle]').addEventListener('click',function(){nc.item.done=!nc.item.done;save();renderPage();toast(nc.item.done?'打卡成功':'取消打卡')});
+    var ci=el.querySelector('[data-action=count]');if(ci){ci.addEventListener('input',function(){nc.item.count=parseInt(ci.value)||0;debounce(function(){save()},'en_c_'+nc.id,500)});ci.addEventListener('click',function(e){e.stopPropagation()})}
+  });
+  // Movie checkbox
+  var movieEl=document.querySelector('.en-item[data-id="movie"]');
+  if(!movieEl)return;
+  movieEl.querySelector('[data-action=toggle]').addEventListener('click',function(){en.movie.done=!en.movie.done;save();renderPage();toast(en.movie.done?'打卡成功':'取消打卡')});
+  // Movie entries: name & minutes inputs (NO renderPage on input!)
+  if(en.movie.movies){
+    document.querySelectorAll('.movie-entry').forEach(function(mel){
+      var mi=parseInt(mel.dataset.mi);var mv=en.movie.movies[mi];
+      var nameInput=mel.querySelector('[data-action=mvname]');
+      nameInput.addEventListener('input',function(){mv.name=nameInput.value;debounce(function(){save()},'en_mv_n_'+mi,300)});
+      nameInput.addEventListener('click',function(e){e.stopPropagation()});
+      var minInput=mel.querySelector('[data-action=mvmin]');
+      minInput.addEventListener('input',function(){mv.minutes=parseInt(minInput.value)||0;debounce(function(){save()},'en_mv_m_'+mi,300)});
+      minInput.addEventListener('click',function(e){e.stopPropagation()});
+      mel.querySelector('[data-action=mvdel]').addEventListener('click',function(){en.movie.movies.splice(mi,1);save();renderPage();toast('已删除')});
+    });
+  }
+  // Add movie button
+  movieEl.querySelector('[data-action=addmovie]').addEventListener('click',function(){if(!en.movie.movies)en.movie.movies=[];en.movie.movies.push({id:uid(),name:'',minutes:0});save();renderPage()});
+}
+
+// ===================== PAGE: NOVEL =====================
+function countWords(html){var tmp=document.createElement('div');tmp.innerHTML=html;var text=tmp.textContent||tmp.innerText||'';return text.replace(/\s/g,'').length}
+
+var novelSpeedTracker={lastWordCount:0,lastTime:0,currentSpeed:0,samples:[],sampleWindow:60};
+function updateTypingSpeed(currentCount){
+  var now=Date.now();
+  if(novelSpeedTracker.lastTime>0){var elapsed=(now-novelSpeedTracker.lastTime)/1000;
+    if(elapsed>0.5){var wordsDiff=currentCount-novelSpeedTracker.lastWordCount;
+      if(wordsDiff>0&&elapsed<300){var speed=Math.round(wordsDiff/(elapsed/60));
+        novelSpeedTracker.samples.push({speed:speed,time:now});
+        novelSpeedTracker.samples=novelSpeedTracker.samples.filter(function(s){return(now-s.time)<novelSpeedTracker.sampleWindow*1000});
+        if(novelSpeedTracker.samples.length>0){var avg=novelSpeedTracker.samples.reduce(function(a,b){return a+b.speed},0)/novelSpeedTracker.samples.length;novelSpeedTracker.currentSpeed=Math.round(avg)}
+      }
+    }
+  }
+  novelSpeedTracker.lastWordCount=currentCount;novelSpeedTracker.lastTime=now;
+}
+
+function renderNovel(){
+  var novel=ensureNovel();var dk=dateKey();
+  if(novel.baseline[dk]===undefined){novel.baseline[dk]=countWords(novel.content);save()}
+  var totalWords=countWords(novel.content);var todayWords=totalWords-(novel.baseline[dk]||0);if(todayWords<0)todayWords=0;
+  var pct=Math.min(100,Math.round(todayWords/DAILY_GOAL*100));
+  novelSpeedTracker.lastWordCount=totalWords;novelSpeedTracker.lastTime=Date.now();
+  var html='<div class="card"><div class="card-title">每日写作目标 <span class="badge">'+pct+'%</span></div><div class="progress-info"><span>今日字数</span><span class="big">'+todayWords+' / '+DAILY_GOAL+'</span></div><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div></div>';
+  html+='<div class="novel-stats"><div class="stat-box"><div class="num" style="color:var(--primary)">'+todayWords+'</div><div class="lbl">今日字数</div></div><div class="stat-box"><div class="num" style="color:var(--success)">'+totalWords+'</div><div class="lbl">总字数</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+Math.max(0,DAILY_GOAL-todayWords)+'</div><div class="lbl">距目标</div></div><div class="speed-box"><div class="num" id="speed-display">0</div><div class="lbl">字/分钟</div></div></div>';
+  html+='<div class="card" style="margin-top:14px"><div class="card-title">小说编辑器</div><div class="novel-toolbar"><button data-cmd="bold">B</button><button data-cmd="italic"><i>I</i></button><button data-cmd="underline"><u>U</u></button><button data-cmd="formatBlock" data-val="h3">标题</button><button data-cmd="formatBlock" data-val="p">正文</button></div><div class="novel-editor" id="novel-editor" contenteditable="true" data-placeholder="开始写作...">'+(novel.content||'')+'</div></div>';
+  return html;
+}
+function initNovel(){
+  var novel=ensureNovel();var dk=dateKey();var editor=document.getElementById('novel-editor');var speedDisplay=document.getElementById('speed-display');
+  document.querySelectorAll('.novel-toolbar button').forEach(function(btn){btn.addEventListener('mousedown',function(e){e.preventDefault()});btn.addEventListener('click',function(e){e.preventDefault();document.execCommand(btn.dataset.cmd,false,btn.dataset.val||null);editor.focus();onEditorChange()})});
+  function onEditorChange(){
+    novel.content=editor.innerHTML;var total=countWords(novel.content);var today=total-(novel.baseline[dk]||0);if(today<0)today=0;var pct=Math.min(100,Math.round(today/DAILY_GOAL*100));
+    updateTypingSpeed(total);if(speedDisplay)speedDisplay.textContent=novelSpeedTracker.currentSpeed;
+    var fill=document.querySelector('.progress-fill');if(fill)fill.style.width=pct+'%';
+    var infoBig=document.querySelector('.progress-info .big');if(infoBig)infoBig.textContent=today+' / '+DAILY_GOAL;
+    var badge=document.querySelector('.card-title .badge');if(badge)badge.textContent=pct+'%';
+    var stats=document.querySelectorAll('.stat-box .num');if(stats[0])stats[0].textContent=today;if(stats[1])stats[1].textContent=total;if(stats[2])stats[2].textContent=Math.max(0,DAILY_GOAL-today);
+    debounce(function(){save();toast('已自动保存')},'novel_save',800);
+  }
+  editor.addEventListener('input',onEditorChange);
+  var speedDecayInterval=setInterval(function(){
+    var now=Date.now();novelSpeedTracker.samples=novelSpeedTracker.samples.filter(function(s){return(now-s.time)<novelSpeedTracker.sampleWindow*1000});
+    if(novelSpeedTracker.samples.length>0){var avg=novelSpeedTracker.samples.reduce(function(a,b){return a+b.speed},0)/novelSpeedTracker.samples.length;novelSpeedTracker.currentSpeed=Math.round(avg)}else{novelSpeedTracker.currentSpeed=0}
+    if(speedDisplay)speedDisplay.textContent=novelSpeedTracker.currentSpeed;
+  },2000);
+  window._novelSpeedInterval=speedDecayInterval;
+}
+
+// ===================== PAGE: WORK =====================
+function renderWork(){
+  var work=ensureWork();var html='';
+  if(work.categories.length===0)html+='<div class="empty">暂无工作大类，点击下方添加</div>';
+  work.categories.forEach(function(cat,ci){
+    var done=cat.subtasks.filter(function(s){return s.done}).length;
+    html+='<div class="work-cat" data-ci="'+ci+'"><div class="work-cat-header"><span class="cat-name" data-action="rename">'+esc(cat.name)+'</span><span class="badge">'+done+'/'+cat.subtasks.length+'</span><span class="cat-del" data-action="delcat">删除</span></div>';
+    if(cat.subtasks.length===0)html+='<div class="empty" style="padding:10px 0">暂无子任务</div>';
+    cat.subtasks.forEach(function(st,si){html+='<div class="subtask" data-si="'+si+'"><div class="checkbox'+(st.done?' checked':'')+'" data-action="toggle"></div><span class="st-text'+(st.done?' done':'')+'">'+esc(st.text)+'</span><span class="st-del" data-action="delsub">✕</span></div>'});
+    html+='<div class="sub-add-row"><input type="text" placeholder="添加子任务..." maxlength="50" data-action="subinput"><button class="btn btn-primary btn-sm" data-action="subadd">+</button></div></div>';
+  });
+  html+='<div class="work-add-row"><input type="text" id="work-cat-input" placeholder="输入工作大类名称..." maxlength="30"><button class="btn btn-primary btn-sm" id="work-cat-add">添加大类</button></div>';
+  return html;
+}
+function initWork(){
+  var work=ensureWork();
+  document.querySelectorAll('.work-cat').forEach(function(catEl){var ci=parseInt(catEl.dataset.ci);var cat=work.categories[ci];
+    catEl.querySelectorAll('.subtask').forEach(function(stEl){var si=parseInt(stEl.dataset.si);
+      stEl.querySelector('[data-action=toggle]').addEventListener('click',function(){cat.subtasks[si].done=!cat.subtasks[si].done;save();renderPage()});
+      stEl.querySelector('[data-action=delsub]').addEventListener('click',function(){cat.subtasks.splice(si,1);save();renderPage();toast('已删除')});
+    });
+    var subInput=catEl.querySelector('[data-action=subinput]');var subAdd=catEl.querySelector('[data-action=subadd]');
+    function addSub(){var v=subInput.value.trim();if(!v)return;cat.subtasks.push({id:uid(),text:v,done:false});save();renderPage();toast('已添加')}
+    subAdd.addEventListener('click',addSub);subInput.addEventListener('keydown',function(e){if(e.key==='Enter')addSub()});
+    var nameEl=catEl.querySelector('[data-action=rename]');nameEl.addEventListener('click',function(){
+      var currentName=cat.name;nameEl.innerHTML='<input class="cat-edit-input" type="text" value="'+esc(currentName)+'" maxlength="30" />';
+      var editInput=nameEl.querySelector('.cat-edit-input');editInput.focus();editInput.select();
+      function finishEdit(){var newName=editInput.value.trim();if(newName){cat.name=newName;save()}renderPage()}
+      editInput.addEventListener('blur',finishEdit);editInput.addEventListener('keydown',function(e){if(e.key==='Enter')finishEdit();if(e.key==='Escape')renderPage()});
+    });
+    var delEl=catEl.querySelector('[data-action=delcat]');delEl.addEventListener('click',function(){
+      if(delEl.dataset.confirming==='1'){work.categories.splice(ci,1);save();renderPage();toast('已删除')}
+      else{delEl.dataset.confirming='1';delEl.textContent='确认?';delEl.style.fontWeight='600';setTimeout(function(){if(delEl&&delEl.dataset.confirming==='1'){delEl.dataset.confirming='0';delEl.textContent='删除';delEl.style.fontWeight=''}},3000)}
+    });
+  });
+  var catInput=document.getElementById('work-cat-input');var catAdd=document.getElementById('work-cat-add');
+  function addCat(){var v=catInput.value.trim();if(!v)return;work.categories.push({id:uid(),name:v,subtasks:[]});catInput.value='';save();renderPage();toast('已添加')}
+  catAdd.addEventListener('click',addCat);catInput.addEventListener('keydown',function(e){if(e.key==='Enter')addCat()});
+}
+
+// ===================== PAGE: BUDGET =====================
+function renderBudget(){
+  var dk=dateKey();var bd=ensureBudget(dk);
+  var totalInc=bd.entries.filter(function(e){return e.type==='income'}).reduce(function(a,e){return a+e.amount},0);
+  var totalExp=bd.entries.filter(function(e){return e.type==='expense'}).reduce(function(a,e){return a+e.amount},0);
+  var balance=totalInc-totalExp;
+  var html='<div class="budget-summary"><div class="budget-box inc"><div class="num">¥'+totalInc+'</div><div class="lbl">今日收入</div></div><div class="budget-box exp"><div class="num">¥'+totalExp+'</div><div class="lbl">今日支出</div></div><div class="budget-box bal"><div class="num">¥'+balance+'</div><div class="lbl">今日结余</div></div></div>';
+  
+  // Add entry form
+  html+='<div class="card"><div class="card-title">添加记录</div>';
+  html+='<div class="entry-form"><select id="bd-type"><option value="expense">支出</option><option value="income">收入</option></select><select id="bd-cat">'+EXPENSE_CATS.map(function(c){return '<option value="'+c+'">'+c+'</option>'}).join('')+'</select><input type="number" id="bd-amount" placeholder="金额" min="0" style="max-width:100px" /><input type="text" id="bd-note" placeholder="备注" maxlength="30" style="max-width:140px" /><button class="btn btn-primary btn-sm" id="bd-add">添加</button></div>';
+  html+='<div class="mood-row" id="bd-mood-row">';
+  MOODS.forEach(function(m){html+='<span class="mood-btn" data-mood="'+m+'">'+m+'</span>'});
+  html+='</div></div>';
+  
+  // Entries list
+  html+='<div class="card"><div class="card-title">今日记录 <span class="badge">'+bd.entries.length+'</span></div>';
+  if(bd.entries.length===0)html+='<div class="empty">暂无记录</div>';
+  bd.entries.forEach(function(entry,i){
+    html+='<div class="entry-item" data-idx="'+i+'"><span class="entry-type '+entry.type+'">'+(entry.type==='income'?'收入':'支出')+'</span><span class="entry-amount">'+(entry.type==='income'?'+' : '-')+'¥'+entry.amount+'</span><span class="entry-cat">'+esc(entry.category)+'</span><span class="entry-mood">'+entry.mood+'</span><span class="entry-note">'+esc(entry.note||'')+'</span><span class="entry-del" data-action="del">✕</span></div>';
+  });
+  html+='</div>';
+  return html;
+}
+function initBudget(){
+  var dk=dateKey();var bd=ensureBudget(dk);var selectedMood='😊';
+  // Type switch changes categories
+  var typeSelect=document.getElementById('bd-type');var catSelect=document.getElementById('bd-cat');
+  function updateCats(){
+    var cats=typeSelect.value==='income'?INCOME_CATS:EXPENSE_CATS;
+    catSelect.innerHTML=cats.map(function(c){return '<option value="'+c+'">'+c+'</option>'}).join('');
+  }
+  typeSelect.addEventListener('change',updateCats);
+  // Mood selection
+  document.querySelectorAll('.mood-btn').forEach(function(el){if(el.dataset.mood===selectedMood)el.classList.add('sel');
+    el.addEventListener('click',function(){selectedMood=el.dataset.mood;document.querySelectorAll('.mood-btn').forEach(function(b){b.classList.remove('sel')});el.classList.add('sel')});
+  });
+  // Add entry
+  var addBtn=document.getElementById('bd-add');var amountInput=document.getElementById('bd-amount');var noteInput=document.getElementById('bd-note');
+  function addEntry(){
+    var amount=parseFloat(amountInput.value);if(!amount||amount<=0){toast('请输入有效金额');return}
+    bd.entries.push({id:uid(),type:typeSelect.value,amount:amount,category:catSelect.value,note:noteInput.value.trim(),mood:selectedMood});
+    amountInput.value='';noteInput.value='';save();renderPage();toast('已添加');
+  }
+  addBtn.addEventListener('click',addEntry);amountInput.addEventListener('keydown',function(e){if(e.key==='Enter')addEntry()});
+  // Delete entry
+  document.querySelectorAll('.entry-item').forEach(function(el){var idx=parseInt(el.dataset.idx);
+    el.querySelector('[data-action=del]').addEventListener('click',function(){bd.entries.splice(idx,1);save();renderPage();toast('已删除')});
+  });
+}
+
+// ===================== PAGE: TRAVEL =====================
+function renderTravel(){
+  var travel=ensureTravel();var html='';
+  if(travel.destinations.length===0)html+='<div class="empty">暂无旅行计划，点击下方添加</div>';
+  travel.destinations.forEach(function(dest,i){
+    html+='<div class="travel-card" data-idx="'+i+'">';
+    html+='<div class="travel-card-header"><span class="t-name">'+esc(dest.name)+'</span>';
+    if(dest.location)html+='<span style="font-size:12px;color:var(--text2)"> · '+esc(dest.location)+'</span>';
+    html+='<span class="t-del" data-action="del">删除</span></div>';
+    if(dest.image)html+='<img src="'+dest.image+'" alt="'+esc(dest.name)+'" />';
+    html+='<div class="travel-img-upload"><input type="file" accept="image/*" data-action="imgupload" /><span class="upload-btn">📷 上传图片</span></div>';
+    if(dest.description)html+='<div class="t-desc">'+esc(dest.description)+'</div>';
+    html+='<div style="margin-top:6px"><span style="font-size:12px;color:var(--text2)">目的地名称：</span><input type="text" data-action="editname" value="'+esc(dest.name)+'" placeholder="名称" style="max-width:160px;padding:6px 8px;font-size:13px" /><span style="font-size:12px;color:var(--text2);margin-left:6px">位置：</span><input type="text" data-action="editloc" value="'+esc(dest.location||'')+'" placeholder="国家/城市" style="max-width:120px;padding:6px 8px;font-size:13px" /></div>';
+    html+='<textarea data-action="editdesc" placeholder="描述这个地方..." style="min-height:60px;font-size:14px;margin-top:6px">'+esc(dest.description||'')+'</textarea>';
+    html+='</div>';
+  });
+  html+='<div class="work-add-row"><input type="text" id="travel-input" placeholder="输入目的地名称..." maxlength="30"><button class="btn btn-primary btn-sm" id="travel-add">添加目的地</button></div>';
+  return html;
+}
+function resizeImage(base64,maxWidth,quality,callback){
+  var img=new Image();img.onload=function(){
+    var w=img.width,h=img.height;if(w>maxWidth){h=Math.round(h*maxWidth/w);w=maxWidth}
+    var canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+    var ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,w,h);callback(canvas.toDataURL('image/jpeg',quality||0.7));
+  };img.src=base64;
+}
+function initTravel(){
+  var travel=ensureTravel();
+  document.querySelectorAll('.travel-card').forEach(function(el){var idx=parseInt(el.dataset.idx);var dest=travel.destinations[idx];
+    el.querySelector('[data-action=del]').addEventListener('click',function(){if(el.dataset.confirmDel==='1'){travel.destinations.splice(idx,1);save();renderPage();toast('已删除')}else{el.dataset.confirmDel='1';el.querySelector('[data-action=del]').textContent='确认?';setTimeout(function(){el.dataset.confirmDel='0';el.querySelector('[data-action=del]').textContent='删除'},3000)}});
+    // Image upload
+    var fileInput=el.querySelector('[data-action=imgupload]');
+    fileInput.addEventListener('change',function(){
+      if(!fileInput.files||!fileInput.files[0])return;var file=fileInput.files[0];
+      if(file.size>5*1024*1024){toast('图片太大，请选择小于5MB的图片');return}
+      var reader=new FileReader();reader.onload=function(e){resizeImage(e.target.result,800,0.6,function(resized){dest.image=resized;save();renderPage();toast('图片已上传')})};reader.readAsDataURL(file);
+    });
+    // Edit fields
+    var nameInput=el.querySelector('[data-action=editname]');nameInput.addEventListener('input',function(){dest.name=nameInput.value.trim();debounce(function(){save()},'tr_name_'+idx,300)});
+    var locInput=el.querySelector('[data-action=editloc]');locInput.addEventListener('input',function(){dest.location=locInput.value.trim();debounce(function(){save()},'tr_loc_'+idx,300)});
+    var descInput=el.querySelector('[data-action=editdesc]');descInput.addEventListener('input',function(){dest.description=descInput.value;debounce(function(){save()},'tr_desc_'+idx,300)});
+  });
+  // Add destination
+  var travelInput=document.getElementById('travel-input');var travelAdd=document.getElementById('travel-add');
+  function addDest(){var v=travelInput.value.trim();if(!v)return;travel.destinations.push({id:uid(),name:v,location:'',description:'',image:''});travelInput.value='';save();renderPage();toast('已添加')}
+  travelAdd.addEventListener('click',addDest);travelInput.addEventListener('keydown',function(e){if(e.key==='Enter')addDest()});
+}
+
+// ===================== PAGE: PLANNING =====================
+function renderPlanning(){
+  var planning=ensurePlanning();var html='';
+  PLANNING_PERIODS.forEach(function(p){
+    var period=planning[p.id];var done=period.tasks.filter(function(t){return t.done}).length;
+    html+='<div class="plan-period" data-period="'+p.id+'"><div class="period-name">'+p.name+'目标 <span class="badge">'+done+'/'+period.tasks.length+'</span></div>';
+    html+='<div class="plan-goal"><textarea data-action="goal" placeholder="这段时间你想要达到什么目标？" style="min-height:50px;font-size:14px">'+esc(period.goal)+'</textarea></div>';
+    if(period.tasks.length===0)html+='<div class="empty" style="padding:8px 0;font-size:13px">暂无里程碑任务</div>';
+    period.tasks.forEach(function(t,i){
+      html+='<div class="subtask" data-ti="'+i+'"><div class="checkbox'+(t.done?' checked':'')+'" data-action="toggle"></div><span class="st-text'+(t.done?' done':'')+'">'+esc(t.text)+'</span><span class="st-del" data-action="deltask">✕</span></div>';
+    });
+    html+='<div class="sub-add-row"><input type="text" placeholder="添加里程碑任务..." maxlength="50" data-action="taskinput"><button class="btn btn-primary btn-sm" data-action="taskadd">+</button></div>';
+    html+='</div>';
+  });
+  return html;
+}
+function initPlanning(){
+  var planning=ensurePlanning();
+  document.querySelectorAll('.plan-period').forEach(function(el){
+    var pid=el.dataset.period;var period=planning[pid];
+    // Goal
+    var goalInput=el.querySelector('[data-action=goal]');goalInput.addEventListener('input',function(){period.goal=goalInput.value;debounce(function(){save();toast('已保存')},'pl_goal_'+pid,500)});
+    // Toggle task
+    el.querySelectorAll('.subtask').forEach(function(stEl){var ti=parseInt(stEl.dataset.ti);
+      stEl.querySelector('[data-action=toggle]').addEventListener('click',function(){period.tasks[ti].done=!period.tasks[ti].done;save();renderPage()});
+      stEl.querySelector('[data-action=deltask]').addEventListener('click',function(){period.tasks.splice(ti,1);save();renderPage();toast('已删除')});
+    });
+    // Add task
+    var taskInput=el.querySelector('[data-action=taskinput]');var taskAdd=el.querySelector('[data-action=taskadd]');
+    function addTask(){var v=taskInput.value.trim();if(!v)return;period.tasks.push({id:uid(),text:v,done:false});save();renderPage();toast('已添加')}
+    taskAdd.addEventListener('click',addTask);taskInput.addEventListener('keydown',function(e){if(e.key==='Enter')addTask()});
+  });
+}
+
+// ===================== PAGE: REVIEW =====================
+var calViewMonth = new Date().getMonth();
+var calViewYear = new Date().getFullYear();
+var calSelectedDate = dateKey();
+
+function renderReview(){
+  var review=ensureReview();var dk=dateKey();var wk=weekKey();var mk=monthKey();var yk=yearKey();
+  var html='<div class="review-tabs"><div class="review-tab active" data-tab="calendar">📅 日历</div><div class="review-tab" data-tab="daily">日报</div><div class="review-tab" data-tab="weekly">周报</div><div class="review-tab" data-tab="monthly">月报</div><div class="review-tab" data-tab="yearly">年报</div></div>';
+  // Calendar tab
+  html+='<div id="review-calendar" style="display:block">';
+  html+=renderCalendar();
+  html+='</div>';
+  // Daily tab
+  html+='<div id="review-daily" style="display:none"><div class="review-summary">'+buildDailySummary()+'</div>';
+  html+='<div class="card"><div class="card-title">日报内容</div><textarea id="review-daily-text" placeholder="记录今日完成情况、心得、问题总结..." style="min-height:160px">'+esc(review.daily[dk]||'')+'</textarea></div>';
+  html+='<div class="card"><div class="card-title">其他工作复盘</div><textarea id="review-other-work" placeholder="自定义记录其他工作内容..." style="min-height:120px">'+esc(review.otherWork[dk]||'')+'</textarea></div>';
+  html+='</div>';
+  // Weekly tab
+  html+='<div id="review-weekly" style="display:none"><div class="review-summary">'+buildWeeklySummary()+'</div>';
+  html+='<div class="card"><div class="card-title">周报内容</div><textarea id="review-weekly-text" placeholder="汇总本周完成数据、进度、复盘总结..." style="min-height:160px">'+esc(review.weekly[wk]||'')+'</textarea></div>';
+  html+='<div class="card"><div class="card-title">本周其他工作复盘</div><textarea id="review-other-work-w" placeholder="本周其他工作总结..." style="min-height:120px">'+esc(review.otherWork[wk]||'')+'</textarea></div>';
+  html+='</div>';
+  // Monthly tab
+  html+='<div id="review-monthly" style="display:none"><div class="review-summary">'+buildMonthlySummary(mk)+'</div>';
+  html+='<div class="card"><div class="card-title">月报总结</div><textarea id="review-monthly-text" placeholder="总结这个月的进步、成就、不足和下月计划..." style="min-height:160px">'+esc(review.monthly[mk]||'')+'</textarea></div>';
+  html+='</div>';
+  // Yearly tab
+  html+='<div id="review-yearly" style="display:none"><div class="review-summary">'+buildYearlySummary(yk)+'</div>';
+  html+='<div class="card"><div class="card-title">年报总结</div><textarea id="review-yearly-text" placeholder="总结这一年的成长、重大进步、年度回顾..." style="min-height:160px">'+esc(review.yearly[yk]||'')+'</textarea></div>';
+  html+='</div>';
+  return html;
+}
+
+function renderCalendar(){
+  var y=calViewYear,m=calViewMonth;
+  var todayDk=dateKey();
+  var firstDay=new Date(y,m,1);
+  var lastDay=new Date(y,m+1,0);
+  var startWeekday=firstDay.getDay(); // 0=Sun
+  var totalDays=lastDay.getDate();
+  // Previous month days to fill
+  var prevLastDay=new Date(y,m,0).getDate();
+  var html='<div class="card"><div class="cal-nav">';
+  html+='<span class="cal-arrow" data-action="calprev">◀</span>';
+  html+='<span class="cal-title">'+y+'年'+(m+1)+'月</span>';
+  html+='<span class="cal-arrow" data-action="calnext">▶</span>';
+  html+='</div>';
+  // Weekday headers
+  html+='<div class="cal-grid">';
+  WEEKDAYS.forEach(function(w){html+='<div class="cal-weekday">'+w+'</div>'});
+  // Fill previous month
+  for(var i=0;i<startWeekday;i++){
+    var pd=prevLastDay-startWeekday+1+i;
+    html+='<div class="cal-day other-month">'+pd+'</div>';
+  }
+  // Current month days
+  for(var d=1;d<=totalDays;d++){
+    var dk=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var isToday=dk===todayDk;
+    var hasData=dayHasData(dk);
+    var isSelected=dk===calSelectedDate&&!isToday;
+    var cls='cal-day';
+    var moodEmoji=D.mood&&D.mood[dk]&&D.mood[dk].level>0?D.mood[dk].emoji:'';
+    if(isToday)cls+=' today';
+    if(hasData)cls+=' has-data';
+    if(isSelected)cls+=' selected';
+    html+='<div class="'+cls+'" data-dk="'+dk+'" data-action="calday">'+d+(moodEmoji?'<span style="font-size:9px;display:block;line-height:1">'+moodEmoji+'</span>':'')+'</div>';
+  }
+  // Fill next month
+  var totalCells=startWeekday+totalDays;
+  var remaining=(7-totalCells%7)%7;
+  for(var i=1;i<=remaining;i++){
+    html+='<div class="cal-day other-month">'+i+'</div>';
+  }
+  html+='</div>';
+  // Quick links
+  html+='<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">';
+  html+='<div class="cal-summary-btn" data-action="viewmonth">📊 查看'+(m+1)+'月总结</div>';
+  html+='<div class="cal-summary-btn" data-action="viewyear">📊 查看'+y+'年总结</div>';
+  html+='</div>';
+  html+='</div>';
+  // Selected date info
+  if(calSelectedDate){
+    html+=renderCalDayInfo(calSelectedDate);
+  }
+  return html;
+}
+
+function dayHasData(dk){
+  if(D.plan&&D.plan[dk]&&D.plan[dk].length>0)return true;
+  if(D.exercise&&D.exercise[dk])return true;
+  if(D.english&&D.english[dk])return true;
+  if(D.budget&&D.budget[dk]&&D.budget[dk].entries.length>0)return true;
+  if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined)return true;
+  if(D.mood&&D.mood[dk]&&D.mood[dk].level>0)return true;
+  return false;
+}
+
+function renderCalDayInfo(dk){
+  var p=dk.split('-');var dateObj=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));
+  var dayName=dateObj.getFullYear()+'年'+parseInt(p[1])+'月'+parseInt(p[2])+'日 星期'+WEEKDAYS[dateObj.getDay()];
+  var html='<div class="cal-day-info" id="cal-day-info">';
+  html+='<h3>'+dayName+'</h3>';
+  // Mini summary for that date
+  html+=buildMiniDaySummary(dk);
+  // Mood for that date
+  var moodData=D.mood&&D.mood[dk];
+  if(moodData&&moodData.level>0){
+    html+='<div style="margin-top:8px;font-size:14px;font-weight:600">'+moodData.emoji+' '+MOOD_LEVELS[moodData.level-1].label+'</div>';
+    if(moodData.text)html+='<div style="font-size:13px;color:var(--text2);line-height:1.6;background:#fffbe6;border-radius:6px;padding:8px;margin-top:4px">'+esc(moodData.text).substring(0,300)+(moodData.text.length>300?'...':'')+'</div>';
+  }
+  // If there's a review note for that date
+  var review=ensureReview();
+  if(review.daily[dk]){
+    html+='<div style="margin-top:8px;font-size:13px;color:var(--text2);line-height:1.6;background:#fafafa;border-radius:6px;padding:8px">'+esc(review.daily[dk]).substring(0,200)+(review.daily[dk].length>200?'...':'')+'</div>';
+  }
+  if(review.otherWork[dk]){
+    html+='<div style="margin-top:6px;font-size:13px;color:var(--text2);line-height:1.6;background:#fffbe6;border-radius:6px;padding:8px">🛠️ '+esc(review.otherWork[dk]).substring(0,150)+(review.otherWork[dk].length>150?'...':'')+'</div>';
+  }
+  html+='</div>';
+  return html;
+}
+
+function buildMiniDaySummary(dk){
+  var planDone=0,planTotal=0,exDone=0,enDone=0,todayWords=0,workDone=0,workTotal=0,dayInc=0,dayExp=0;
+  if(D.plan&&D.plan[dk]){planTotal=D.plan[dk].length;planDone=D.plan[dk].filter(function(t){return t.done}).length}
+  if(D.exercise&&D.exercise[dk]){EXERCISE.forEach(function(e){if(D.exercise[dk].items[e.id])exDone++})}
+  if(D.english&&D.english[dk]){
+    var en=D.english[dk];
+    if(en.nc1&&en.nc1.done)enDone++;if(en.nc2&&en.nc2.done)enDone++;if(en.nc3&&en.nc3.done)enDone++;
+    if(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0)))enDone++;
+  }
+  if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined){var tw=countWords(D.novel.content)-D.novel.baseline[dk];if(tw>0)todayWords=tw}
+  if(D.work&&D.work.categories){D.work.categories.forEach(function(c){c.subtasks.forEach(function(s){workTotal++;if(s.done)workDone++})})}
+  if(D.budget&&D.budget[dk]){D.budget[dk].entries.forEach(function(e){if(e.type==='income')dayInc+=e.amount;else dayExp+=e.amount})}
+  var lines=[];
+  if(planTotal>0)lines.push('📋 计划 '+planDone+'/'+planTotal);
+  if(exDone>0)lines.push('💪 锻炼 '+exDone+'/4');
+  if(enDone>0)lines.push('📖 英语 '+enDone+'/4');
+  if(todayWords>0)lines.push('✍️ 小说 '+todayWords+'字');
+  if(workTotal>0)lines.push('💼 工作 '+workDone+'/'+workTotal);
+  if(dayInc>0||dayExp>0)lines.push('💰 收¥'+dayInc+' 支¥'+dayExp);
+  if(lines.length===0)lines.push('<span style="color:var(--text2)">该日暂无数据</span>');
+  return '<div style="font-size:13px;line-height:1.8">'+lines.join('<br>')+'</div>';
+}
+
+function buildDailySummary(){
+  var dk=dateKey();var plan=ensurePlan(dk);var ex=ensureExercise(dk);var en=ensureEnglish(dk);var novel=ensureNovel();var bd=ensureBudget(dk);
+  var planDone=plan.filter(function(t){return t.done}).length;
+  var exDone=EXERCISE.filter(function(e){return ex.items[e.id]}).length;
+  var enDone=0;var ncItems=[en.nc1,en.nc2,en.nc3];ncItems.forEach(function(item){if(item.done)enDone++});if(en.movie.done||(en.movie.movies&&en.movie.movies.length>0))enDone++;
+  var totalWords=countWords(novel.content);var todayWords=totalWords-(novel.baseline[dk]||0);if(todayWords<0)todayWords=0;
+  var work=ensureWork();var workSubs=[],workDone=0;work.categories.forEach(function(c){c.subtasks.forEach(function(s){workSubs.push(s);if(s.done)workDone++})});
+  var totalInc=bd.entries.filter(function(e){return e.type==='income'}).reduce(function(a,e){return a+e.amount},0);
+  var totalExp=bd.entries.filter(function(e){return e.type==='expense'}).reduce(function(a,e){return a+e.amount},0);
+  var movieMin=0;var movieNames=[];if(en.movie.movies){en.movie.movies.forEach(function(mv){movieMin+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})};
+  var html='<div style="font-weight:600;margin-bottom:4px">📊 今日数据概览</div>';
+  html+='<div class="stat-line"><span>每日计划</span><span class="val">'+planDone+'/'+plan.length+'</span></div>';
+  html+='<div class="stat-line"><span>锻炼打卡</span><span class="val">'+exDone+'/4</span></div>';
+  html+='<div class="stat-line"><span>英语学习</span><span class="val">'+enDone+'/4</span></div>';
+  html+='<div class="stat-line"><span>英语背诵总篇数</span><span class="val">'+((en.nc1.count||0)+(en.nc2.count||0)+(en.nc3.count||0))+'</span></div>';
+  html+='<div class="stat-line"><span>英文电影整理</span><span class="val">'+movieMin+' 分钟</span></div>';
+  if(movieNames.length>0)html+='<div class="stat-line"><span>今日整理的电影</span><span class="val" style="color:#856404">🎬 '+esc(movieNames.join('、'))+'</span></div>';
+  html+='<div class="stat-line"><span>小说写作</span><span class="val">'+todayWords+'/'+DAILY_GOAL+' 字</span></div>';
+  if(workSubs.length>0)html+='<div class="stat-line"><span>工作子任务</span><span class="val">'+workDone+'/'+workSubs.length+'</span></div>';
+  html+='<div class="stat-line"><span>今日收入</span><span class="val" style="color:var(--success)">¥'+totalInc+'</span></div>';
+  html+='<div class="stat-line"><span>今日支出</span><span class="val" style="color:var(--danger)">¥'+totalExp+'</span></div>';
+  html+='<div class="stat-line"><span>今日结余</span><span class="val">¥'+(totalInc-totalExp)+'</span></div>';
+  return html;
+}
+
+function buildWeeklySummary(){
+  var wk=weekKey();var monday=new Date(wk);var days=[];
+  for(var i=0;i<7;i++){var d=new Date(monday);d.setDate(d.getDate()+i);days.push(dateKey(d))}
+  var planDone=0,planTotal=0,exDone=0,enDone=0,essayTotal=0,movieMinutes=0,novelWords=0,workDone=0,workTotal=0,weekInc=0,weekExp=0,activeDays=0;
+  var movieNames=[];
+  days.forEach(function(dk){var hasData=false;
+    if(D.plan&&D.plan[dk]){planTotal+=D.plan[dk].length;planDone+=D.plan[dk].filter(function(t){return t.done}).length;hasData=true}
+    if(D.exercise&&D.exercise[dk]){EXERCISE.forEach(function(e){if(D.exercise[dk].items[e.id])exDone++});hasData=true}
+    if(D.english&&D.english[dk]){var enItem=D.english[dk];var ncItems2=[enItem.nc1,enItem.nc2,enItem.nc3];ncItems2.forEach(function(item){if(item&&item.done)enDone++;if(item)essayTotal+=(item.count||0)});if(enItem.movie&&(enItem.movie.done||(enItem.movie.movies&&enItem.movie.movies.length>0)))enDone++;if(enItem.movie&&enItem.movie.movies){enItem.movie.movies.forEach(function(mv){movieMinutes+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})};hasData=true}
+    if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined){var tw=countWords(D.novel.content)-D.novel.baseline[dk];if(tw>0)novelWords+=tw}
+    if(D.work&&D.work.categories){D.work.categories.forEach(function(c){c.subtasks.forEach(function(s){workTotal++;if(s.done)workDone++})})}
+    if(D.budget&&D.budget[dk]){D.budget[dk].entries.forEach(function(e){if(e.type==='income')weekInc+=e.amount;else weekExp+=e.amount});hasData=true}
+    if(hasData)activeDays++;
+  });
+  var today=new Date(wk);today.setDate(today.getDate()+6);
+  var html='<div style="font-weight:600;margin-bottom:4px">📊 本周数据概览</div>';
+  html+='<div style="font-size:12px;color:var(--text2);margin-bottom:4px">'+fmtDateShort(wk)+' ~ '+fmtDateShort(dateKey(today))+'</div>';
+  html+='<div class="stat-line"><span>活跃天数</span><span class="val">'+activeDays+'/7</span></div>';
+  html+='<div class="stat-line"><span>每日计划完成</span><span class="val">'+planDone+'/'+planTotal+'</span></div>';
+  html+='<div class="stat-line"><span>锻炼打卡</span><span class="val">'+exDone+'/'+(4*7)+'</span></div>';
+  html+='<div class="stat-line"><span>英语学习打卡</span><span class="val">'+enDone+'/'+(4*7)+'</span></div>';
+  html+='<div class="stat-line"><span>英语背诵总篇数</span><span class="val">'+essayTotal+'</span></div>';
+  html+='<div class="stat-line"><span>英文电影整理</span><span class="val">'+movieMinutes+' 分钟</span></div>';
+  if(movieNames.length>0)html+='<div class="stat-line"><span>本周好看的电影</span><span class="val" style="color:#856404">🎬 '+esc(movieNames.join('、'))+'</span></div>';
+  html+='<div class="stat-line"><span>小说写作总量</span><span class="val">'+novelWords+' 字</span></div>';
+  if(workTotal>0)html+='<div class="stat-line"><span>工作子任务</span><span class="val">'+workDone+'/'+workTotal+'</span></div>';
+  html+='<div class="stat-line"><span>本周收入</span><span class="val" style="color:var(--success)">¥'+weekInc+'</span></div>';
+  html+='<div class="stat-line"><span>本周支出</span><span class="val" style="color:var(--danger)">¥'+weekExp+'</span></div>';
+  html+='<div class="stat-line"><span>本周结余</span><span class="val">¥'+(weekInc-weekExp)+'</span></div>';
+  return html;
+}
+
+function buildMonthlySummary(mk){
+  var p=mk.split('-');var y=parseInt(p[0]),m=parseInt(p[1]);
+  var daysInMonth=new Date(y,m,0).getDate();
+  var days=[];for(var d=1;d<=daysInMonth;d++){days.push(y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'))}
+  var planDone=0,planTotal=0,exDone=0,exTotal=0,enDone=0,essayTotal=0,movieMinutes=0,novelWords=0,workDone=0,workTotal=0,monthInc=0,monthExp=0,activeDays=0;
+  var movieNames=[];
+  days.forEach(function(dk){var hasData=false;
+    if(D.plan&&D.plan[dk]){planTotal+=D.plan[dk].length;planDone+=D.plan[dk].filter(function(t){return t.done}).length;hasData=true}
+    if(D.exercise&&D.exercise[dk]){EXERCISE.forEach(function(e){exTotal++;if(D.exercise[dk].items[e.id])exDone++});hasData=true}
+    if(D.english&&D.english[dk]){var enItem=D.english[dk];var ncItems2=[enItem.nc1,enItem.nc2,enItem.nc3];ncItems2.forEach(function(item){if(item&&item.done)enDone++;if(item)essayTotal+=(item.count||0)});if(enItem.movie&&(enItem.movie.done||(enItem.movie.movies&&enItem.movie.movies.length>0)))enDone++;if(enItem.movie&&enItem.movie.movies){enItem.movie.movies.forEach(function(mv){movieMinutes+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})};hasData=true}
+    if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined){var tw=countWords(D.novel.content)-D.novel.baseline[dk];if(tw>0)novelWords+=tw}
+    if(D.work&&D.work.categories){D.work.categories.forEach(function(c){c.subtasks.forEach(function(s){workTotal++;if(s.done)workDone++})})}
+    if(D.budget&&D.budget[dk]){D.budget[dk].entries.forEach(function(e){if(e.type==='income')monthInc+=e.amount;else monthExp+=e.amount});hasData=true}
+    if(hasData)activeDays++;
+  });
+  var html='<div style="font-weight:600;margin-bottom:4px">📊 '+y+'年'+m+'月数据概览</div>';
+  html+='<div class="stat-line"><span>活跃天数</span><span class="val">'+activeDays+'/'+daysInMonth+'</span></div>';
+  if(planTotal>0){html+='<div class="stat-line"><span>计划完成率</span><span class="val">'+Math.round(planDone/planTotal*100)+'% ('+planDone+'/'+planTotal+')'+'</span></div>'}
+  if(exTotal>0){html+='<div class="stat-line"><span>锻炼完成率</span><span class="val">'+Math.round(exDone/exTotal*100)+'% ('+exDone+'/'+exTotal+')'+'</span></div>'}
+  html+='<div class="stat-line"><span>英语学习打卡</span><span class="val">'+enDone+'</span></div>';
+  html+='<div class="stat-line"><span>背诵总篇数</span><span class="val">'+essayTotal+'</span></div>';
+  html+='<div class="stat-line"><span>英文电影整理</span><span class="val">'+movieMinutes+' 分钟</span></div>';
+  if(movieNames.length>0)html+='<div class="stat-line"><span>本月整理的电影</span><span class="val" style="color:#856404;font-size:11px">🎬 '+esc(movieNames.slice(0,10).join('、'))+(movieNames.length>10?'等'+movieNames.length+'部':'')+'</span></div>';
+  if(novelWords>0)html+='<div class="stat-line"><span>小说写作总量</span><span class="val">'+novelWords+' 字</span></div>';
+  if(workTotal>0)html+='<div class="stat-line"><span>工作子任务完成</span><span class="val">'+workDone+'/'+workTotal+'</span></div>';
+  html+='<div class="stat-line"><span>月度收入</span><span class="val" style="color:var(--success)">¥'+monthInc+'</span></div>';
+  html+='<div class="stat-line"><span>月度支出</span><span class="val" style="color:var(--danger)">¥'+monthExp+'</span></div>';
+  html+='<div class="stat-line"><span>月度结余</span><span class="val">¥'+(monthInc-monthExp)+'</span></div>';
+  return html;
+}
+
+function buildYearlySummary(yk){
+  var y=parseInt(yk);
+  var planDone=0,planTotal=0,exDone=0,exTotal=0,enDone=0,essayTotal=0,movieMinutes=0,novelWords=0,workDone=0,workTotal=0,yearInc=0,yearExp=0,activeDays=0,activeMonths=0;
+  var movieNames=[];
+  // Iterate all months
+  for(var m=1;m<=12;m++){
+    var mk=y+'-'+String(m).padStart(2,'0');
+    var daysInMonth=new Date(y,m,0).getDate();
+    var monthActive=false;
+    for(var d=1;d<=daysInMonth;d++){
+      var dk=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      var hasData=false;
+      if(D.plan&&D.plan[dk]){planTotal+=D.plan[dk].length;planDone+=D.plan[dk].filter(function(t){return t.done}).length;hasData=true}
+      if(D.exercise&&D.exercise[dk]){EXERCISE.forEach(function(e){exTotal++;if(D.exercise[dk].items[e.id])exDone++});hasData=true}
+      if(D.english&&D.english[dk]){var enItem=D.english[dk];var ncItems2=[enItem.nc1,enItem.nc2,enItem.nc3];ncItems2.forEach(function(item){if(item&&item.done)enDone++;if(item)essayTotal+=(item.count||0)});if(enItem.movie&&(enItem.movie.done||(enItem.movie.movies&&enItem.movie.movies.length>0)))enDone++;if(enItem.movie&&enItem.movie.movies){enItem.movie.movies.forEach(function(mv){movieMinutes+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})};hasData=true}
+      if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined){var tw=countWords(D.novel.content)-D.novel.baseline[dk];if(tw>0)novelWords+=tw}
+      if(D.work&&D.work.categories){D.work.categories.forEach(function(c){c.subtasks.forEach(function(s){workTotal++;if(s.done)workDone++})})}
+      if(D.budget&&D.budget[dk]){D.budget[dk].entries.forEach(function(e){if(e.type==='income')yearInc+=e.amount;else yearExp+=e.amount});hasData=true}
+      if(hasData){activeDays++;monthActive=true}
+    }
+    if(monthActive)activeMonths++;
+  }
+  var html='<div style="font-weight:600;margin-bottom:4px">📊 '+y+'年数据概览</div>';
+  html+='<div class="stat-line"><span>活跃天数</span><span class="val">'+activeDays+' 天</span></div>';
+  html+='<div class="stat-line"><span>活跃月份</span><span class="val">'+activeMonths+'/12</span></div>';
+  if(planTotal>0)html+='<div class="stat-line"><span>年度计划完成率</span><span class="val">'+Math.round(planDone/planTotal*100)+'% ('+planDone+'/'+planTotal+')'+'</span></div>';
+  if(exTotal>0)html+='<div class="stat-line"><span>年度锻炼完成率</span><span class="val">'+Math.round(exDone/exTotal*100)+'% ('+exDone+'/'+exTotal+')'+'</span></div>';
+  html+='<div class="stat-line"><span>年度英语打卡</span><span class="val">'+enDone+'</span></div>';
+  html+='<div class="stat-line"><span>年度背诵总篇数</span><span class="val">'+essayTotal+'</span></div>';
+  html+='<div class="stat-line"><span>年度英文电影整理</span><span class="val">'+movieMinutes+' 分钟</span></div>';
+  if(movieNames.length>0)html+='<div class="stat-line"><span>年度整理的电影</span><span class="val" style="color:#856404;font-size:11px">🎬 '+esc(movieNames.slice(0,8).join('、'))+(movieNames.length>8?'等'+movieNames.length+'部':'')+'</span></div>';
+  if(novelWords>0)html+='<div class="stat-line"><span>年度小说写作</span><span class="val">'+novelWords+' 字</span></div>';
+  if(workTotal>0)html+='<div class="stat-line"><span>年度工作完成</span><span class="val">'+workDone+'/'+workTotal+'</span></div>';
+  html+='<div class="stat-line"><span>年度收入</span><span class="val" style="color:var(--success)">¥'+yearInc+'</span></div>';
+  html+='<div class="stat-line"><span>年度支出</span><span class="val" style="color:var(--danger)">¥'+yearExp+'</span></div>';
+  html+='<div class="stat-line"><span>年度结余</span><span class="val">¥'+(yearInc-yearExp)+'</span></div>';
+  return html;
+}
+
+function initReview(){
+  var review=ensureReview();var dk=dateKey();var wk=weekKey();var mk=monthKey();var yk=yearKey();
+  // Tab switching
+  document.querySelectorAll('.review-tab').forEach(function(tab){tab.addEventListener('click',function(){
+    document.querySelectorAll('.review-tab').forEach(function(t){t.classList.remove('active')});tab.classList.add('active');
+    var tabId=tab.dataset.tab;
+    document.getElementById('review-calendar').style.display=tabId==='calendar'?'block':'none';
+    document.getElementById('review-daily').style.display=tabId==='daily'?'block':'none';
+    document.getElementById('review-weekly').style.display=tabId==='weekly'?'block':'none';
+    document.getElementById('review-monthly').style.display=tabId==='monthly'?'block':'none';
+    document.getElementById('review-yearly').style.display=tabId==='yearly'?'block':'none';
+  })});
+  // Calendar navigation
+  var calPrev=document.querySelector('[data-action=calprev]');var calNext=document.querySelector('[data-action=calnext]');
+  if(calPrev){calPrev.addEventListener('click',function(){calViewMonth--;if(calViewMonth<0){calViewMonth=11;calViewYear--};renderPage()})}
+  if(calNext){calNext.addEventListener('click',function(){calViewMonth++;if(calViewMonth>11){calViewMonth=0;calViewYear++};renderPage()})}
+  // Calendar day clicks
+  document.querySelectorAll('.cal-day[data-dk]').forEach(function(el){
+    el.addEventListener('click',function(){
+      calSelectedDate=el.dataset.dk;
+      // Update selected state visually
+      document.querySelectorAll('.cal-day[data-dk]').forEach(function(d){d.classList.remove('selected')});
+      if(!el.classList.contains('today'))el.classList.add('selected');
+      // Update day info section
+      var infoEl=document.getElementById('cal-day-info');
+      if(infoEl){infoEl.outerHTML=renderCalDayInfo(calSelectedDate)}
+      else{var calCard=document.querySelector('#review-calendar .card');var newInfo=document.createElement('div');newInfo.innerHTML=renderCalDayInfo(calSelectedDate);calCard.parentNode.appendChild(newInfo.firstChild)}
+    });
+  });
+  // Quick link: view month
+  var viewMonthBtn=document.querySelector('[data-action=viewmonth]');
+  if(viewMonthBtn){viewMonthBtn.addEventListener('click',function(){
+    mk=calViewYear+'-'+String(calViewMonth+1).padStart(2,'0');
+    // Switch to monthly tab
+    document.querySelectorAll('.review-tab').forEach(function(t){t.classList.remove('active')});
+    document.querySelector('.review-tab[data-tab=monthly]').classList.add('active');
+    document.getElementById('review-calendar').style.display='none';
+    document.getElementById('review-daily').style.display='none';
+    document.getElementById('review-weekly').style.display='none';
+    document.getElementById('review-monthly').style.display='block';
+    document.getElementById('review-yearly').style.display='none';
+    // Re-render monthly summary for selected month
+    var mSummaryEl=document.querySelector('#review-monthly .review-summary');
+    if(mSummaryEl)mSummaryEl.innerHTML=buildMonthlySummary(mk);
+  })}
+  // Quick link: view year
+  var viewYearBtn=document.querySelector('[data-action=viewyear]');
+  if(viewYearBtn){viewYearBtn.addEventListener('click',function(){
+    yk=String(calViewYear);
+    document.querySelectorAll('.review-tab').forEach(function(t){t.classList.remove('active')});
+    document.querySelector('.review-tab[data-tab=yearly]').classList.add('active');
+    document.getElementById('review-calendar').style.display='none';
+    document.getElementById('review-daily').style.display='none';
+    document.getElementById('review-weekly').style.display='none';
+    document.getElementById('review-monthly').style.display='none';
+    document.getElementById('review-yearly').style.display='block';
+    var ySummaryEl=document.querySelector('#review-yearly .review-summary');
+    if(ySummaryEl)ySummaryEl.innerHTML=buildYearlySummary(yk);
+  })}
+  // Textarea saves
+  var dailyText=document.getElementById('review-daily-text');dailyText.addEventListener('input',function(){review.daily[dk]=dailyText.value;debounce(function(){save();toast('已保存')},'rev_d')});
+  var weeklyText=document.getElementById('review-weekly-text');weeklyText.addEventListener('input',function(){review.weekly[wk]=weeklyText.value;debounce(function(){save();toast('已保存')},'rev_w')});
+  var otherWork=document.getElementById('review-other-work');otherWork.addEventListener('input',function(){review.otherWork[dk]=otherWork.value;debounce(function(){save();toast('已保存')},'rev_ow')});
+  var otherWorkW=document.getElementById('review-other-work-w');otherWorkW.addEventListener('input',function(){review.otherWork[wk]=otherWorkW.value;debounce(function(){save();toast('已保存')},'rev_oww')});
+  var monthlyText=document.getElementById('review-monthly-text');monthlyText.addEventListener('input',function(){review.monthly[mk]=monthlyText.value;debounce(function(){save();toast('已保存')},'rev_m')});
+  var yearlyText=document.getElementById('review-yearly-text');yearlyText.addEventListener('input',function(){review.yearly[yk]=yearlyText.value;debounce(function(){save();toast('已保存')},'rev_y')});
+}
+
+// ===================== DOWNLOAD APP =====================
+function downloadApp(){
+  try{
+    var sTag='<scr'+'ipt>';
+    var eTag='</scr'+'ipt>';
+    var styleEl=document.querySelector('style');
+    var scriptEl=document.querySelector('script');
+    var html='<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">\n<title>每日管理</title>\n'+styleEl.outerHTML+'\n</head>\n<body>\n<nav class="sidebar" id="sidebar"></nav>\n<main class="content" id="content"></main>\n<div class="toast" id="toast"></div>\n'+sTag+'\n'+scriptEl.textContent+'\n'+eTag+'\n</body>\n</html>';
+    var blob=new Blob([html],{type:'text/html;charset=utf-8'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;a.download='index.html';
+    document.body.appendChild(a);a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('下载成功！');
+  }catch(e){
+    toast('下载失败：'+e.message);
+  }
+}
+
+// ===================== PAGE: MOOD DIARY =====================
+var MOOD_LEVELS=[{lv:1,emoji:'😡',label:'很差',color:'var(--danger)'},{lv:2,emoji:'😢',label:'不好',color:'#ff9800'},{lv:3,emoji:'😐',label:'一般',color:'var(--warn)'},{lv:4,emoji:'😄',label:'不错',color:'#8bc34a'},{lv:5,emoji:'😊',label:'很好',color:'var(--success)'}];
+
+function ensureMood(){if(!D.mood)D.mood={};return D.mood}
+function ensureGoalLog(){if(!D.goalLog)D.goalLog={};return D.goalLog}
+
+function renderMood(){
+  var mood=ensureMood();var dk=dateKey();
+  var today=mood[dk]||{level:0,emoji:'',text:''};
+  var html='<div class="card">';
+  html+='<div class="card-title">今天的心情</div>';
+  html+='<div class="mood-emoji-row">';
+  MOOD_LEVELS.forEach(function(m){
+    html+='<div class="mood-emoji'+(today.level===m.lv?' active':'')+'" data-lv="'+m.lv+'" data-emoji="'+m.emoji+'" style="border-color:'+((today.level===m.lv)?m.color:'var(--border)')+'">'+m.emoji+'</div>';
+  });
+  html+='</div>';
+  html+='<div id="mood-selected-label" style="text-align:center;font-size:14px;color:var(--text2);margin-bottom:12px">'+(today.level>0?MOOD_LEVELS.find(function(m){return m.lv===today.level}).label:'点击选择心情')+'</div>';
+  html+='</div>';
+  html+='<div class="card"><div class="card-title">心情日记</div>';
+  html+='<textarea id="mood-diary-text" placeholder="记录今天的感受、思绪、任何想写的内容...不限长度，随心记录" style="min-height:200px;resize:vertical">'+esc(today.text||'')+'</textarea>';
+  html+='</div>';
+  // Mood trend chart (past 7 days)
+  html+=renderMoodTrend();
+  // Mood stats
+  html+=renderMoodStats();
+  return html;
+}
+
+function renderMoodTrend(){
+  var mood=ensureMood();var html='<div class="card"><div class="mood-trend-title">心情趋势（近7天）</div>';
+  html+='<div class="mood-trend-chart">';
+  for(var i=6;i>=0;i--){
+    var d=new Date();d.setDate(d.getDate()-i);var dk2=dateKey(d);
+    var m=mood[dk2];var h=m&&m.level>0?(m.level*18):5;
+    var color=m&&m.level>0?MOOD_LEVELS[m.level-1].color:'#ddd';
+    var emoji=m&&m.level>0?m.emoji:'';
+    var dayLabel=(d.getMonth()+1)+'/'+d.getDate();
+    html+='<div style="flex:1;text-align:center"><div class="mood-bar" style="height:'+h+'px;background:'+color+'">'+emoji+'</div><div class="mood-bar-date">'+dayLabel+'</div></div>';
+  }
+  html+='</div></div>';
+  return html;
+}
+
+function renderMoodStats(){
+  var mood=ensureMood();var mk=monthKey();
+  var daysInMonth=new Date(parseInt(mk.split('-')[0]),parseInt(mk.split('-')[1]),0).getDate();
+  var avgMood=0,moodDays=0,goodDays=0,badDays=0,streak=0,currentStreak=0;
+  for(var d=1;d<=daysInMonth;d++){
+    var dk2=mk+'-'+String(d).padStart(2,'0');
+    if(mood[dk2]&&mood[dk2].level>0){
+      moodDays++;avgMood+=mood[dk2].level;
+      if(mood[dk2].level>=4)goodDays++;
+      if(mood[dk2].level<=2)badDays++;
+      // Check streak from today backwards
+      var todayDk=dateKey();
+      if(dk2<=todayDk){
+        if(mood[dk2].level>=4){currentStreak++;if(currentStreak>streak)streak=currentStreak}
+        else{currentStreak=0}
+      }
+    }
+  }
+  if(moodDays>0)avgMood=Math.round(avgMood/moodDays*10)/10;
+  var html='<div class="card"><div class="card-title">本月心情统计</div>';
+  html+='<div class="mood-stats">';
+  html+='<div class="mood-stat-item"><div class="num">'+avgMood+'</div>平均心情</div>';
+  html+='<div class="mood-stat-item"><div class="num">'+moodDays+'/'+daysInMonth+'</div>记录天数</div>';
+  html+='<div class="mood-stat-item"><div class="num" style="color:var(--success)">'+goodDays+'</div>好心情天</div>';
+  html+='<div class="mood-stat-item"><div class="num" style="color:var(--danger)">'+badDays+'</div>低落天</div>';
+  html+='</div>';
+  if(streak>0)html+='<div style="text-align:center;margin-top:10px;font-size:14px;color:var(--success);font-weight:600">🎉 连续好心情最长 '+streak+' 天</div>';
+  html+='</div>';
+  return html;
+}
+
+function initMood(){
+  var mood=ensureMood();var dk=dateKey();
+  // Emoji clicks
+  document.querySelectorAll('.mood-emoji').forEach(function(el){
+    el.addEventListener('click',function(){
+      var lv=parseInt(el.dataset.lv);var emoji=el.dataset.emoji;
+      mood[dk]={level:lv,emoji:emoji,text:mood[dk]?mood[dk].text:''};
+      save();renderPage();toast('心情已记录: '+emoji);
+    });
+  });
+  // Diary text
+  var diaryEl=document.getElementById('mood-diary-text');
+  if(diaryEl){diaryEl.addEventListener('input',function(){
+    if(!mood[dk])mood[dk]={level:0,emoji:'',text:''};
+    mood[dk].text=diaryEl.value;debounce(function(){save();toast('日记已保存')},'mood_t');
+  })}
+}
+
+// ===================== PAGE: GOAL PROGRESS =====================
+var GOAL_PERIODS=[{id:'1w',label:'一周目标'},{id:'1m',label:'一月目标'},{id:'3m',label:'三月目标'},{id:'6m',label:'半年目标'},{id:'1y',label:'一年目标'},{id:'3y',label:'三年目标'},{id:'5y',label:'五年目标'}];
+
+function renderGoal(){
+  var planning=ensurePlanning();var goalLog=ensureGoalLog();var dk=dateKey();
+  // Calculate total progress
+  var totalDone=0,totalMilestones=0;
+  PLANNING_PERIODS.forEach(function(p){
+    var period=planning[p.id];
+    totalMilestones+=period.tasks.length;
+    period.tasks.forEach(function(t){if(t.done)totalDone++});
+  });
+  var totalPct=totalMilestones>0?Math.round(totalDone/totalMilestones*100):0;
+  // Total ring
+  var totalColor=totalPct<30?'var(--danger)':(totalPct<70?'var(--warn)':'var(--success)');
+  var html='<div class="goal-total-ring">';
+  html+='<svg class="goal-total-svg" viewBox="0 0 120 120">';
+  html+='<circle cx="60" cy="60" r="50" fill="none" stroke="var(--border)" stroke-width="10"/>';
+  html+='<circle cx="60" cy="60" r="50" fill="none" stroke="'+totalColor+'" stroke-width="10" stroke-dasharray="'+(totalPct*3.14)+' 314" stroke-linecap="round" transform="rotate(-90 60 60)"/>';
+  html+='<text x="60" y="55" text-anchor="middle" font-size="24" font-weight="700" fill="'+totalColor+'">'+totalPct+'%</text>';
+  html+='<text x="60" y="75" text-anchor="middle" font-size="11" fill="var(--text2)">总体进度</text>';
+  html+='</svg>';
+  html+='<div class="goal-total-label">'+totalDone+'/'+totalMilestones+' 个里程碑已完成</div>';
+  html+='</div>';
+  // Individual goal rings
+  html+='<div class="goal-ring-container">';
+  PLANNING_PERIODS.forEach(function(p){
+    var period=planning[p.id];
+    var done=period.tasks.filter(function(t){return t.done}).length;
+    var total=period.tasks.length;
+    var pct=total>0?Math.round(done/total*100):0;
+    var color=pct<30?'var(--danger)':(pct<70?'var(--warn)':'var(--success)');
+    var pctClass=pct<30?'red':(pct<70?'yellow':'green');
+    html+='<div class="goal-ring">';
+    html+='<div class="goal-ring-label">'+esc(p.name)+'</div>';
+    html+='<svg class="goal-ring-svg" viewBox="0 0 80 80">';
+    html+='<circle cx="40" cy="40" r="30" fill="none" stroke="var(--border)" stroke-width="8"/>';
+    html+='<circle cx="40" cy="40" r="30" fill="none" stroke="'+color+'" stroke-width="8" stroke-dasharray="'+(pct*1.88)+' 188" stroke-linecap="round" transform="rotate(-90 40 40)"/>';
+    html+='<text x="40" y="42" text-anchor="middle" font-size="16" font-weight="700" fill="'+color+'">'+pct+'%</text>';
+    html+='</svg>';
+    html+='<div class="goal-ring-pct '+pctClass+'">'+done+'/'+total+'</div>';
+    html+='</div>';
+  });
+  html+='</div>';
+  // Progress log
+  html+='<div class="card"><div class="card-title">今日进度日志</div>';
+  html+='<textarea id="goal-log-text" placeholder="记录今天在哪个目标上做了什么推进..." style="min-height:120px">'+esc(goalLog[dk]||'')+'</textarea>';
+  html+='</div>';
+  return html;
+}
+
+function initGoal(){
+  var goalLog=ensureGoalLog();var dk=dateKey();
+  var logEl=document.getElementById('goal-log-text');
+  if(logEl){logEl.addEventListener('input',function(){
+    goalLog[dk]=logEl.value;debounce(function(){save();toast('进度日志已保存')},'goal_t');
+  })}
+}
+
+// ===================== PAGE: DATA EXPORT =====================
+function renderExport(){
+  var html='<div class="export-section">';
+  // Full backup export
+  html+='<div class="export-btn" data-action="export-all"><span class="export-icon">💾</span><div class="export-info"><div class="title">全量备份导出</div><div class="desc">导出所有数据为JSON文件，可用于换手机恢复</div></div></div>';
+  // Import from backup
+  html+='<div class="export-btn" data-action="import-all"><span class="export-icon">📥</span><div class="export-info"><div class="title">从备份恢复数据</div><div class="desc">从JSON备份文件导入还原所有数据（会覆盖当前数据）</div></div></div>';
+  html+='<input type="file" id="import-file" class="import-file-input" accept=".json">';
+  html+='</div>';
+  html+='<div class="export-section">';
+  // Budget CSV
+  html+='<div class="export-btn" data-action="export-budget"><span class="export-icon">📊</span><div class="export-info"><div class="title">记账数据导出</div><div class="desc">导出本月收支明细为CSV表格</div></div></div>';
+  // Review text
+  html+='<div class="export-btn" data-action="export-review"><span class="export-icon">📝</span><div class="export-info"><div class="title">复盘文本导出</div><div class="desc">导出日报/周报/月报/年报文本为TXT</div></div></div>';
+  // Mood data
+  html+='<div class="export-btn" data-action="export-mood"><span class="export-icon">😊</span><div class="export-info"><div class="title">心情日记导出</div><div class="desc">导出所有心情记录为CSV</div></div></div>';
+  html+='</div>';
+  html+='<div class="export-section">';
+  // Image report
+  html+='<div class="export-btn" data-action="export-report"><span class="export-icon">🖼️</span><div class="export-info"><div class="title">生成数据报告图片</div><div class="desc">生成今日/本周数据概览图片，可分享</div></div></div>';
+  html+='</div>';
+  return html;
+}
+
+function initExport(){
+  document.querySelector('[data-action=export-all]').addEventListener('click',function(){exportAllData()});
+  document.querySelector('[data-action=import-all]').addEventListener('click',function(){document.getElementById('import-file').click()});
+  document.getElementById('import-file').addEventListener('change',function(e){importAllData(e)});
+  document.querySelector('[data-action=export-budget]').addEventListener('click',function(){exportBudgetCSV()});
+  document.querySelector('[data-action=export-review]').addEventListener('click',function(){exportReviewText()});
+  document.querySelector('[data-action=export-mood]').addEventListener('click',function(){exportMoodCSV()});
+  document.querySelector('[data-action=export-report]').addEventListener('click',function(){generateReportImage()});
+}
+
+function exportAllData(){
+  var json=JSON.stringify(D,null,2);
+  var blob=new Blob([json],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='daily-life-backup-'+dateKey()+'.json';a.click();
+  URL.revokeObjectURL(a.href);toast('备份文件已下载');
+}
+
+function importAllData(e){
+  var file=e.target.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      var data=JSON.parse(ev.target.result);
+      if(confirm('导入将覆盖当前所有数据，确定继续吗？')){
+        D=data;saveData(D);renderPage();toast('数据已恢复！');
+      }
+    }catch(err){toast('文件格式错误，请选择正确的备份JSON文件')}
+  };
+  reader.readAsText(file);
+}
+
+function exportBudgetCSV(){
+  var mk=monthKey();var bd=D.budget||{};
+  var lines=['日期,类型,分类,金额,备注,心情'];
+  Object.keys(bd).sort().forEach(function(dk){
+    if(!dk.startsWith(mk))return;
+    var b=bd[dk];if(!b||!b.entries)return;
+    b.entries.forEach(function(en){
+      lines.push(dk+','+en.type+','+esc(en.category||'')+','+en.amount+','+esc(en.note||'')+','+esc(en.mood||''));
+    });
+  });
+  if(lines.length===1){toast('本月暂无记账数据');return}
+  var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='budget-'+mk+'.csv';a.click();URL.revokeObjectURL(a.href);toast('记账CSV已下载');
+}
+
+function exportReviewText(){
+  var review=ensureReview();var mk=monthKey();var yk=yearKey();
+  var lines=['===== 复盘文本导出 =====',''];
+  Object.keys(review.daily).sort().reverse().forEach(function(dk){
+    lines.push('【日报 '+dk+'】');lines.push(review.daily[dk]||'');lines.push('');
+  });
+  lines.push('【周报】');Object.keys(review.weekly).sort().reverse().forEach(function(wk){lines.push('周: '+wk);lines.push(review.weekly[wk]||'');lines.push('')});
+  lines.push('【月报 '+mk+'】');lines.push(review.monthly[mk]||'');lines.push('');
+  lines.push('【年报 '+yk+'】');lines.push(review.yearly[yk]||'');lines.push('');
+  var blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='review-'+dateKey()+'.txt';a.click();URL.revokeObjectURL(a.href);toast('复盘文本已下载');
+}
+
+function exportMoodCSV(){
+  var mood=ensureMood();
+  var lines=['日期,心情等级,心情,日记内容'];
+  Object.keys(mood).sort().forEach(function(dk){
+    var m=mood[dk];if(!m||m.level===0)return;
+    lines.push(dk+','+m.level+','+m.emoji+','+esc((m.text||'').substring(0,100)));
+  });
+  if(lines.length===1){toast('暂无心情记录');return}
+  var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='mood-'+dateKey()+'.csv';a.click();URL.revokeObjectURL(a.href);toast('心情CSV已下载');
+}
+
+function generateReportImage(){
+  // Create a canvas-based report card
+  var canvas=document.createElement('canvas');canvas.width=600;canvas.height=800;
+  var ctx=canvas.getContext('2d');
+  // Background
+  ctx.fillStyle='#f0f2f5';ctx.fillRect(0,0,600,800);
+  ctx.fillStyle='#fff';ctx.fillRect(20,20,560,760);
+  // Title
+  ctx.fillStyle='#4a90d9';ctx.font='bold 24px sans-serif';ctx.fillText('📊 每日数据报告',180,60);
+  ctx.fillStyle='#888';ctx.font='14px sans-serif';ctx.fillText(fmtDate(),200,85);
+  // Stats
+  var y=120;ctx.font='16px sans-serif';
+  var summary=buildDailySummary();
+  var summaryText=summary.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  var lines=summaryText.split('\n');
+  lines.forEach(function(line){
+    if(line.trim()){
+      ctx.fillStyle='#1a1a1a';ctx.fillText(line.trim(),40,y);
+      y+=28;
+    }
+  });
+  // Mood
+  var mood=ensureMood();var dk=dateKey();
+  if(mood[dk]&&mood[dk].level>0){
+    ctx.fillStyle='#52c41a';ctx.font='bold 18px sans-serif';
+    ctx.fillText('今日心情: '+mood[dk].emoji+' '+MOOD_LEVELS[mood[dk].level-1].label,40,y);
+    y+=30;
+  }
+  // Footer
+  ctx.fillStyle='#888';ctx.font='12px sans-serif';ctx.fillText('Generated by 每日管理 App',200,780);
+  // Download
+  canvas.toBlob(function(blob){
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='daily-report-'+dateKey()+'.png';a.click();URL.revokeObjectURL(a.href);toast('报告图片已下载');
+  },'image/png');
+}
+
+// ===================== INIT =====================
+renderSidebar();
+renderPage();
+</script>
+</body>
+</html>
