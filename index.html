@@ -71,14 +71,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .stat-box{flex:1;background:var(--card);border-radius:8px;padding:10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .stat-box .num{font-size:22px;font-weight:700}
 .stat-box .lbl{font-size:11px;color:var(--text2);margin-top:2px}
-.speed-box{flex:1;background:var(--card);border-radius:8px;padding:10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.05)}
-.speed-box .num{font-size:22px;font-weight:700;color:var(--warn)}
-.speed-box .lbl{font-size:11px;color:var(--text2);margin-top:2px}
-.novel-toolbar{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
-.novel-toolbar button{padding:4px 12px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer;font-size:14px;font-family:inherit}
-.novel-toolbar button:active{background:var(--primary-bg)}
-.novel-editor{min-height:300px;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:15px;line-height:1.8;outline:none;overflow-y:auto;max-height:400px}
-.novel-editor:empty::before{content:attr(data-placeholder);color:var(--text2)}
 .section-gap{height:8px}
 .empty{text-align:center;color:var(--text2);padding:20px;font-size:14px}
 /* Summary tabs */
@@ -137,9 +129,12 @@ function loadData(){
   if(!D.exercise.weekly)D.exercise.weekly={};
   if(!D.exercise.daily)D.exercise.daily={};
   if(!D.english)D.english={};
-  if(!D.novel)D.novel={content:'',weekly:{},baseline:{}};
-  if(!D.novel.weekly)D.novel.weekly={};
-  if(!D.novel.baseline)D.novel.baseline={};
+  if(!D.novel)D.novel={weeklyGoal:{},dailyWords:{}};
+  if(!D.novel.weeklyGoal)D.novel.weeklyGoal={};
+  if(!D.novel.dailyWords)D.novel.dailyWords={};
+  // Migrate old novel format
+  if(D.novel.content!==undefined){delete D.novel.content;delete D.novel.baseline;delete D.novel.weekly}
+  if(!D.novel.dailyGoal)D.novel.dailyGoal=10000;
   if(!D.media)D.media={weekly:{},daily:{}};
   if(!D.media.weekly)D.media.weekly={};
   if(!D.media.daily)D.media.daily={};
@@ -152,11 +147,9 @@ function weekKey(d){d=d||new Date();var day=d.getDay()||7;d=new Date(d);d.setDat
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function fmtDate(){var d=new Date();return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日 星期'+WEEKDAYS[d.getDay()]}
 function fmtWeekRange(wk){var monday=new Date(wk);var sun=new Date(wk);sun.setDate(sun.getDate()+6);return (monday.getMonth()+1)+'/'+monday.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate()}
-var DAILY_GOAL=10000;
 var _timers={};
 function debounce(fn,key,ms){ms=ms||500;if(_timers[key])clearTimeout(_timers[key]);_timers[key]=setTimeout(fn,ms)}
 function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},1500)}
-function countWords(html){var tmp=document.createElement('div');tmp.innerHTML=html;var text=tmp.textContent||tmp.innerText||'';return text.replace(/\s/g,'').length}
 // ===== NAV =====
 var NAV=[
   {id:'exercise',icon:'💪',label:'锻炼'},
@@ -175,7 +168,6 @@ function renderSidebar(){
   document.querySelectorAll('.nav-item').forEach(function(el){
     el.addEventListener('click',function(){
       currentPage=el.dataset.page;
-      if(window._novelSpeedInterval){clearInterval(window._novelSpeedInterval);window._novelSpeedInterval=null}
       renderSidebar();renderPage();
     });
   });
@@ -212,7 +204,7 @@ function ensureEnglish(dk){
   if(!D.english[dk].movie.movies)D.english[dk].movie.movies=[];
   return D.english[dk];
 }
-function ensureNovel(){if(!D.novel)D.novel={content:'',weekly:{},baseline:{}};if(!D.novel.weekly)D.novel.weekly={};if(!D.novel.baseline)D.novel.baseline={};return D.novel}
+function ensureNovel(){if(!D.novel)D.novel={weeklyGoal:{},dailyWords:{}};if(!D.novel.weeklyGoal)D.novel.weeklyGoal={};if(!D.novel.dailyWords)D.novel.dailyWords={};if(!D.novel.dailyGoal)D.novel.dailyGoal=10000;return D.novel}
 function ensureMediaDaily(dk){
   if(!D.media.daily[dk]){
     D.media.daily[dk]=[
@@ -346,57 +338,41 @@ function initEnglish(){
   movieEl.querySelector('[data-action=addmovie]').addEventListener('click',function(){if(!en.movie.movies)en.movie.movies=[];en.movie.movies.push({id:uid(),name:'',minutes:0});save();renderPage()});
 }
 // ===================== PAGE: NOVEL =====================
-var novelSpeedTracker={lastWordCount:0,lastTime:0,currentSpeed:0,samples:[],sampleWindow:60};
-function updateTypingSpeed(currentCount){
-  var now=Date.now();
-  if(novelSpeedTracker.lastTime>0){var elapsed=(now-novelSpeedTracker.lastTime)/1000;
-    if(elapsed>0.5){var wordsDiff=currentCount-novelSpeedTracker.lastWordCount;
-      if(wordsDiff>0&&elapsed<300){var speed=Math.round(wordsDiff/(elapsed/60));
-        novelSpeedTracker.samples.push({speed:speed,time:now});
-        novelSpeedTracker.samples=novelSpeedTracker.samples.filter(function(s){return(now-s.time)<novelSpeedTracker.sampleWindow*1000});
-        if(novelSpeedTracker.samples.length>0){var avg=novelSpeedTracker.samples.reduce(function(a,b){return a+b.speed},0)/novelSpeedTracker.samples.length;novelSpeedTracker.currentSpeed=Math.round(avg)}
-      }
-    }
-  }
-  novelSpeedTracker.lastWordCount=currentCount;novelSpeedTracker.lastTime=now;
-}
 function renderNovel(){
   var novel=ensureNovel();var dk=dateKey();var wk=weekKey();
-  if(novel.baseline[dk]===undefined){novel.baseline[dk]=countWords(novel.content);save()}
-  var totalWords=countWords(novel.content);var todayWords=totalWords-(novel.baseline[dk]||0);if(todayWords<0)todayWords=0;
-  var pct=Math.min(100,Math.round(todayWords/DAILY_GOAL*100));
-  novelSpeedTracker.lastWordCount=totalWords;novelSpeedTracker.lastTime=Date.now();
+  var todayWords=novel.dailyWords[dk]||0;
+  var dailyGoal=novel.dailyGoal||10000;
+  var pct=Math.min(100,Math.round(todayWords/dailyGoal*100));
+  // Calculate total words
+  var totalWords=0;
+  Object.keys(novel.dailyWords).forEach(function(k){totalWords+=novel.dailyWords[k]||0});
   var html='<div class="weekly-goal"><label>🎯 本周写作目标</label>';
-  html+='<textarea id="novel-weekly" placeholder="例：本周写10000字，完成第3章">'+esc(novel.weekly[wk]||'')+'</textarea>';
+  html+='<textarea id="novel-weekly" placeholder="例：本周写10000字，完成第3章">'+esc(novel.weeklyGoal[wk]||'')+'</textarea>';
   html+='<div style="font-size:12px;color:var(--text2);margin-top:4px">'+fmtWeekRange(wk)+'</div></div>';
-  html+='<div class="card"><div class="card-title">每日写作目标 <span class="badge">'+pct+'%</span></div><div class="progress-info"><span>今日字数</span><span class="big">'+todayWords+' / '+DAILY_GOAL+'</span></div><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div></div>';
-  html+='<div class="novel-stats"><div class="stat-box"><div class="num" style="color:var(--primary)">'+todayWords+'</div><div class="lbl">今日字数</div></div><div class="stat-box"><div class="num" style="color:var(--success)">'+totalWords+'</div><div class="lbl">总字数</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+Math.max(0,DAILY_GOAL-todayWords)+'</div><div class="lbl">距目标</div></div><div class="speed-box"><div class="num" id="speed-display">0</div><div class="lbl">字/分钟</div></div></div>';
-  html+='<div class="card"><div class="card-title">小说编辑器</div><div class="novel-toolbar"><button data-cmd="bold">B</button><button data-cmd="italic"><i>I</i></button><button data-cmd="underline"><u>U</u></button><button data-cmd="formatBlock" data-val="h3">标题</button><button data-cmd="formatBlock" data-val="p">正文</button></div><div class="novel-editor" id="novel-editor" contenteditable="true" data-placeholder="开始写作...">'+(novel.content||'')+'</div></div>';
+  html+='<div class="card"><div class="card-title">每日写作目标 <span class="badge">'+pct+'%</span></div>';
+  html+='<div class="progress-info"><span>今日字数</span><span class="big">'+todayWords.toLocaleString()+' / '+dailyGoal.toLocaleString()+'</span></div>';
+  html+='<div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div></div>';
+  html+='<div class="card"><div class="card-title">📝 输入今日字数</div>';
+  html+='<div style="display:flex;gap:8px;margin-bottom:10px"><input type="number" id="novel-input" placeholder="输入今天写了多少字" value="'+(todayWords>0?todayWords:'')+'" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit" min="0" /><button class="btn btn-primary" id="novel-save-btn">保存</button></div>';
+  html+='<div class="novel-stats"><div class="stat-box"><div class="num" style="color:var(--primary)">'+todayWords.toLocaleString()+'</div><div class="lbl">今日字数</div></div><div class="stat-box"><div class="num" style="color:var(--success)">'+totalWords.toLocaleString()+'</div><div class="lbl">总字数</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+Math.max(0,dailyGoal-todayWords).toLocaleString()+'</div><div class="lbl">距目标</div></div></div></div>';
+  // Weekly stats
+  var weekWords=0;
+  var monday=new Date(wk);
+  for(var i=0;i<7;i++){var d=new Date(monday);d.setDate(d.getDate()+i);var dk2=dateKey(d);weekWords+=(novel.dailyWords[dk2]||0)}
+  html+='<div class="card"><div class="card-title">本周统计</div>';
+  html+='<div class="progress-info-row"><span>本周字数</span><span class="val">'+weekWords.toLocaleString()+' 字</span></div>';
+  html+='<div class="progress-info-row"><span>总字数</span><span class="val">'+totalWords.toLocaleString()+' 字</span></div>';
+  html+='</div>';
   return html;
 }
 function initNovel(){
   var novel=ensureNovel();var dk=dateKey();var wk=weekKey();
-  var editor=document.getElementById('novel-editor');var speedDisplay=document.getElementById('speed-display');
-  document.querySelectorAll('.novel-toolbar button').forEach(function(btn){btn.addEventListener('mousedown',function(e){e.preventDefault()});btn.addEventListener('click',function(e){e.preventDefault();document.execCommand(btn.dataset.cmd,false,btn.dataset.val||null);editor.focus();onEditorChange()})});
-  function onEditorChange(){
-    novel.content=editor.innerHTML;var total=countWords(novel.content);var today=total-(novel.baseline[dk]||0);if(today<0)today=0;var pct=Math.min(100,Math.round(today/DAILY_GOAL*100));
-    updateTypingSpeed(total);if(speedDisplay)speedDisplay.textContent=novelSpeedTracker.currentSpeed;
-    var fill=document.querySelector('.progress-fill');if(fill)fill.style.width=pct+'%';
-    var infoBig=document.querySelector('.progress-info .big');if(infoBig)infoBig.textContent=today+' / '+DAILY_GOAL;
-    var badge=document.querySelector('.card-title .badge');if(badge)badge.textContent=pct+'%';
-    var stats=document.querySelectorAll('.stat-box .num');if(stats[0])stats[0].textContent=today;if(stats[1])stats[1].textContent=total;if(stats[2])stats[2].textContent=Math.max(0,DAILY_GOAL-today);
-    debounce(function(){save();toast('已自动保存')},'novel_save',800);
-  }
-  editor.addEventListener('input',onEditorChange);
-  var speedDecayInterval=setInterval(function(){
-    var now=Date.now();novelSpeedTracker.samples=novelSpeedTracker.samples.filter(function(s){return(now-s.time)<novelSpeedTracker.sampleWindow*1000});
-    if(novelSpeedTracker.samples.length>0){var avg=novelSpeedTracker.samples.reduce(function(a,b){return a+b.speed},0)/novelSpeedTracker.samples.length;novelSpeedTracker.currentSpeed=Math.round(avg)}else{novelSpeedTracker.currentSpeed=0}
-    if(speedDisplay)speedDisplay.textContent=novelSpeedTracker.currentSpeed;
-  },2000);
-  window._novelSpeedInterval=speedDecayInterval;
-  // Weekly goal
+  var input=document.getElementById('novel-input');
+  var saveBtn=document.getElementById('novel-save-btn');
+  function saveWords(){var v=parseInt(input.value)||0;novel.dailyWords[dk]=v;save();renderPage();toast('已保存')}
+  saveBtn.addEventListener('click',saveWords);
   var wg=document.getElementById('novel-weekly');
-  wg.addEventListener('input',function(){novel.weekly[wk]=wg.value;debounce(function(){save();toast('已保存')},'novel_wg')});
+  wg.addEventListener('input',function(){novel.weeklyGoal[wk]=wg.value;debounce(function(){save();toast('已保存')},'novel_wg')});
 }
 // ===================== PAGE: MEDIA =====================
 function renderMedia(){
@@ -457,10 +433,7 @@ function dayHasData(dk){
   if(D.exercise&&D.exercise.daily&&D.exercise.daily[dk]&&D.exercise.daily[dk].length>0)return true;
   if(D.english&&D.english[dk])return true;
   if(D.media&&D.media.daily&&D.media.daily[dk]&&D.media.daily[dk].length>0)return true;
-  if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined){
-    var tw=countWords(D.novel.content)-(D.novel.baseline[dk]||0);
-    if(tw>0)return true;
-  }
+  if(D.novel&&D.novel.dailyWords&&(D.novel.dailyWords[dk]||0)>0)return true;
   return false;
 }
 function buildDayInfo(dk){
@@ -490,9 +463,9 @@ function buildDayInfo(dk){
     if(movieNames.length>0)rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:#856404"><span>'+esc(movieNames.join('、'))+'</span></div>');
   }
   // Novel
-  if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined){
-    var tw=countWords(D.novel.content)-(D.novel.baseline[dk]||0);if(tw<0)tw=0;
-    if(tw>0){hasAny=true;rows.push('<div class="ci-row"><span>✍️ 小说写作</span><span class="v">'+tw+' 字</span></div>')}
+  if(D.novel&&D.novel.dailyWords){
+    var tw=D.novel.dailyWords[dk]||0;
+    if(tw>0){hasAny=true;rows.push('<div class="ci-row"><span>✍️ 小说写作</span><span class="v">'+tw.toLocaleString()+' 字</span></div>')}
   }
   // Media
   if(D.media&&D.media.daily&&D.media.daily[dk]){
@@ -511,6 +484,7 @@ function buildMonthStats(ym){
   var y=parseInt(ym.split('-')[0]);var m=parseInt(ym.split('-')[1]);
   var days=new Date(y,m,0).getDate();
   var activeDays=0,exDone=0,exTotal=0,enDone=0,essays=0,movieMin=0,movieNames=[],novelWords=0,mediaDone=0,mediaTotal=0;
+  var totalNovelAll=0; // total novel words across all time
   for(var d=1;d<=days;d++){
     var dk=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     var hasData=false;
@@ -522,10 +496,12 @@ function buildMonthStats(ym){
       if(en.movie&&en.movie.movies){en.movie.movies.forEach(function(mv){movieMin+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})}
       hasData=true;
     }
-    if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined){var tw=countWords(D.novel.content)-(D.novel.baseline[dk]||0);if(tw>0){novelWords+=tw;hasData=true}}
+    if(D.novel&&D.novel.dailyWords){var tw=D.novel.dailyWords[dk]||0;if(tw>0){novelWords+=tw;hasData=true}}
     if(D.media&&D.media.daily&&D.media.daily[dk]){D.media.daily[dk].forEach(function(it){mediaTotal++;if(it.done)mediaDone++;if(it.done)hasData=true})}
     if(hasData)activeDays++;
   }
+  // Calculate all-time total novel words
+  if(D.novel&&D.novel.dailyWords){Object.keys(D.novel.dailyWords).forEach(function(k){totalNovelAll+=D.novel.dailyWords[k]||0})}
   var rows=[];
   rows.push('<div class="ss-title">'+y+'年'+m+'月 数据汇总</div>');
   rows.push('<div class="ss-row"><span>活跃天数</span><span class="v">'+activeDays+'/'+days+' 天</span></div>');
@@ -534,14 +510,15 @@ function buildMonthStats(ym){
   rows.push('<div class="ss-row"><span>📖 背诵总篇数</span><span class="v">'+essays+' 篇</span></div>');
   if(movieMin>0)rows.push('<div class="ss-row"><span>🎬 电影整理</span><span class="v">'+movieMin+' 分钟</span></div>');
   if(movieNames.length>0)rows.push('<div class="ss-row" style="flex-direction:column;align-items:flex-start"><span>🎬 看过的电影</span><span style="font-size:12px;color:#856404;margin-top:2px">'+esc(movieNames.join('、'))+'</span></div>');
-  if(novelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说写作</span><span class="v">'+novelWords+' 字</span></div>');
+  if(novelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说本月字数</span><span class="v">'+novelWords.toLocaleString()+' 字</span></div>');
+  rows.push('<div class="ss-row"><span>✍️ 小说总字数</span><span class="v">'+totalNovelAll.toLocaleString()+' 字</span></div>');
   if(mediaTotal>0)rows.push('<div class="ss-row"><span>📱 自媒体完成</span><span class="v'+(mediaTotal>0&&mediaDone===mediaTotal?' green':'')+'">'+mediaDone+'/'+mediaTotal+'</span></div>');
   if(activeDays===0)rows.push('<div style="color:var(--text2);text-align:center;padding:10px">本月暂无数据</div>');
   return '<div class="sum-stat">'+rows.join('')+'</div>';
 }
 function buildYearStats(y){
   var activeMonths=0,activeDays=0;
-  var totalExDone=0,totalExTotal=0,totalEnDone=0,totalEssays=0,totalMovieMin=0,totalNovelWords=0,totalMediaDone=0,totalMediaTotal=0;
+  var totalExDone=0,totalExTotal=0,totalEnDone=0,totalEssays=0,totalMovieMin=0,totalNovelWords=0,totalNovelAll=0,totalMediaDone=0,totalMediaTotal=0;
   var allMovies=[];
   for(var m=1;m<=12;m++){
     var ym=y+'-'+String(m).padStart(2,'0');
@@ -557,12 +534,14 @@ function buildYearStats(y){
         if(en.movie&&en.movie.movies){en.movie.movies.forEach(function(mv){totalMovieMin+=(mv.minutes||0);if(mv.name)allMovies.push(mv.name)})}
         hasData=true;
       }
-      if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined){var tw=countWords(D.novel.content)-(D.novel.baseline[dk]||0);if(tw>0){totalNovelWords+=tw;hasData=true}}
+      if(D.novel&&D.novel.dailyWords){var tw=D.novel.dailyWords[dk]||0;if(tw>0){totalNovelWords+=tw;hasData=true}}
       if(D.media&&D.media.daily&&D.media.daily[dk]){D.media.daily[dk].forEach(function(it){totalMediaTotal++;if(it.done)totalMediaDone++;if(it.done)hasData=true})}
       if(hasData){monthDays++;activeDays++}
     }
     if(monthDays>0){activeMonths++}
   }
+  // Calculate all-time total novel words
+  if(D.novel&&D.novel.dailyWords){Object.keys(D.novel.dailyWords).forEach(function(k){totalNovelAll+=D.novel.dailyWords[k]||0})}
   var rows=[];
   rows.push('<div class="ss-title">'+y+'年 年度数据汇总</div>');
   rows.push('<div class="ss-row"><span>活跃月份</span><span class="v">'+activeMonths+'/12</span></div>');
@@ -572,7 +551,8 @@ function buildYearStats(y){
   rows.push('<div class="ss-row"><span>📖 背诵总篇数</span><span class="v">'+totalEssays+' 篇</span></div>');
   if(totalMovieMin>0)rows.push('<div class="ss-row"><span>🎬 电影整理</span><span class="v">'+totalMovieMin+' 分钟</span></div>');
   if(allMovies.length>0)rows.push('<div class="ss-row" style="flex-direction:column;align-items:flex-start"><span>🎬 整理电影数</span><span style="font-size:12px;color:#856404;margin-top:2px">共 '+allMovies.length+' 部</span></div>');
-  if(totalNovelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说写作</span><span class="v">'+totalNovelWords+' 字</span></div>');
+  if(totalNovelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说年度字数</span><span class="v">'+totalNovelWords.toLocaleString()+' 字</span></div>');
+  rows.push('<div class="ss-row"><span>✍️ 小说总字数</span><span class="v">'+totalNovelAll.toLocaleString()+' 字</span></div>');
   if(totalMediaTotal>0)rows.push('<div class="ss-row"><span>📱 自媒体完成</span><span class="v'+(totalMediaDone===totalMediaTotal?' green':'')+'">'+totalMediaDone+'/'+totalMediaTotal+'</span></div>');
   if(activeDays===0)rows.push('<div style="color:var(--text2);text-align:center;padding:10px">本年暂无数据</div>');
   return '<div class="sum-stat">'+rows.join('')+'</div>';
