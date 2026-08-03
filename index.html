@@ -81,6 +81,40 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .novel-editor:empty::before{content:attr(data-placeholder);color:var(--text2)}
 .section-gap{height:8px}
 .empty{text-align:center;color:var(--text2);padding:20px;font-size:14px}
+/* Summary tabs */
+.sum-tabs{display:flex;gap:8px;margin-bottom:14px}
+.sum-tab{flex:1;text-align:center;padding:10px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;background:#fff;border:1px solid var(--border)}
+.sum-tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+/* Calendar */
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.cal-nav{display:flex;align-items:center;gap:12px}
+.cal-nav-btn{width:32px;height:32px;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+.cal-nav-btn:active{background:var(--primary-bg)}
+.cal-title{font-size:16px;font-weight:700}
+.cal-jump{display:flex;gap:6px}
+.cal-jump-btn{padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:12px;font-family:inherit}
+.cal-jump-btn:active{background:var(--primary-bg);color:var(--primary)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px}
+.cal-dow{text-align:center;font-size:12px;color:var(--text2);padding:4px 0;font-weight:600}
+.cal-day{text-align:center;padding:8px 0;border-radius:6px;font-size:14px;cursor:pointer;position:relative;transition:all .15s;min-height:36px}
+.cal-day.other{color:var(--text2);opacity:.35}
+.cal-day.today{background:var(--primary);color:#fff;font-weight:700}
+.cal-day.selected{background:var(--primary-bg);color:var(--primary);font-weight:700;border:2px solid var(--primary)}
+.cal-day.has-data::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--success)}
+.cal-day.today.has-data::after{background:#fff}
+.cal-day:active{transform:scale(.95)}
+.cal-day-info{background:var(--primary-bg);border-radius:8px;padding:14px;margin-top:12px;font-size:13px;line-height:1.8}
+.cal-day-info .ci-title{font-weight:700;font-size:15px;margin-bottom:8px;color:var(--primary)}
+.cal-day-info .ci-row{display:flex;justify-content:space-between;padding:3px 0}
+.cal-day-info .ci-row .v{font-weight:600}
+.cal-day-info .ci-done{color:var(--success);font-weight:600}
+/* Summary stats */
+.sum-stat{background:var(--primary-bg);border-radius:8px;padding:14px;margin-bottom:12px;font-size:13px;line-height:2}
+.sum-stat .ss-title{font-weight:700;font-size:15px;margin-bottom:6px;color:var(--primary)}
+.sum-stat .ss-row{display:flex;justify-content:space-between;padding:2px 0}
+.sum-stat .ss-row .v{font-weight:600}
+.sum-stat .ss-row .v.green{color:var(--success)}
+.sum-stat .ss-row .v.red{color:var(--danger)}
 /* Toast */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
 .toast.show{opacity:1}
@@ -129,6 +163,7 @@ var NAV=[
   {id:'english',icon:'📖',label:'学英语'},
   {id:'novel',icon:'✍️',label:'写小说'},
   {id:'media',icon:'📱',label:'自媒体'},
+  {id:'summary',icon:'📊',label:'汇总'},
 ];
 var currentPage='exercise';
 function renderSidebar(){
@@ -152,11 +187,13 @@ function renderPage(){
   else if(currentPage==='english')html+=renderEnglish();
   else if(currentPage==='novel')html+=renderNovel();
   else if(currentPage==='media')html+=renderMedia();
+  else if(currentPage==='summary')html+=renderSummary();
   c.innerHTML=html;
   if(currentPage==='exercise')initExercise();
   else if(currentPage==='english')initEnglish();
   else if(currentPage==='novel')initNovel();
   else if(currentPage==='media')initMedia();
+  else if(currentPage==='summary')initSummary();
 }
 // ===== ENSURE FUNCTIONS =====
 function ensureExerciseDaily(dk){
@@ -409,6 +446,230 @@ function initMedia(){
   addInput.addEventListener('keydown',function(e){if(e.key==='Enter')addItem()});
   var wg=document.getElementById('media-weekly');
   wg.addEventListener('input',function(){D.media.weekly[wk]=wg.value;debounce(function(){save();toast('已保存')},'media_wg')});
+}
+// ===================== PAGE: SUMMARY =====================
+var sumView='calendar'; // calendar | monthly | yearly
+var calCurrent=new Date(); // current displayed month in calendar
+var calSelectedDate=dateKey(); // selected date in calendar
+function monthKey(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function fmtDateShort(dk){var p=dk.split('-');return parseInt(p[1])+'/'+parseInt(p[2])}
+function dayHasData(dk){
+  if(D.exercise&&D.exercise.daily&&D.exercise.daily[dk]&&D.exercise.daily[dk].length>0)return true;
+  if(D.english&&D.english[dk])return true;
+  if(D.media&&D.media.daily&&D.media.daily[dk]&&D.media.daily[dk].length>0)return true;
+  if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined){
+    var tw=countWords(D.novel.content)-(D.novel.baseline[dk]||0);
+    if(tw>0)return true;
+  }
+  return false;
+}
+function buildDayInfo(dk){
+  var rows=[];
+  var hasAny=false;
+  // Exercise
+  if(D.exercise&&D.exercise.daily&&D.exercise.daily[dk]){
+    var exItems=D.exercise.daily[dk];
+    var exDone=exItems.filter(function(i){return i.done}).length;
+    if(exItems.length>0){
+      hasAny=true;
+      rows.push('<div class="ci-row"><span>💪 锻炼</span><span class="v'+(exDone===exItems.length?' ci-done':'')+'">'+exDone+'/'+exItems.length+'</span></div>');
+      exItems.forEach(function(it){rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:var(--text2)"><span>'+(it.done?'✅':'⬜')+' '+esc(it.label)+'</span></div>')});
+    }
+  }
+  // English
+  if(D.english&&D.english[dk]){
+    var en=D.english[dk];var enDone=0;var essays=0;
+    [en.nc1,en.nc2,en.nc3].forEach(function(item){if(item&&item.done)enDone++;if(item)essays+=(item.count||0)});
+    if(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0)))enDone++;
+    var movieMin=0;var movieNames=[];
+    if(en.movie&&en.movie.movies){en.movie.movies.forEach(function(mv){movieMin+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})}
+    hasAny=true;
+    rows.push('<div class="ci-row"><span>📖 英语打卡</span><span class="v">'+enDone+'/4</span></div>');
+    rows.push('<div class="ci-row"><span>📖 背诵篇数</span><span class="v">'+essays+' 篇</span></div>');
+    if(movieMin>0)rows.push('<div class="ci-row"><span>🎬 电影整理</span><span class="v">'+movieMin+' 分钟</span></div>');
+    if(movieNames.length>0)rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:#856404"><span>'+esc(movieNames.join('、'))+'</span></div>');
+  }
+  // Novel
+  if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined){
+    var tw=countWords(D.novel.content)-(D.novel.baseline[dk]||0);if(tw<0)tw=0;
+    if(tw>0){hasAny=true;rows.push('<div class="ci-row"><span>✍️ 小说写作</span><span class="v">'+tw+' 字</span></div>')}
+  }
+  // Media
+  if(D.media&&D.media.daily&&D.media.daily[dk]){
+    var mItems=D.media.daily[dk];var mDone=mItems.filter(function(i){return i.done}).length;
+    if(mItems.length>0){
+      hasAny=true;
+      rows.push('<div class="ci-row"><span>📱 自媒体</span><span class="v'+(mDone===mItems.length?' ci-done':'')+'">'+mDone+'/'+mItems.length+'</span></div>');
+      mItems.forEach(function(it){rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:var(--text2)"><span>'+(it.done?'✅':'⬜')+' '+esc(it.label)+'</span></div>')});
+    }
+  }
+  if(!hasAny)return '<div class="cal-day-info"><div class="ci-title">'+fmtDateShort(dk)+' 无记录</div><div style="color:var(--text2)">这一天没有数据</div></div>';
+  var d=new Date(dk);
+  return '<div class="cal-day-info"><div class="ci-title">'+d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日 星期'+WEEKDAYS[d.getDay()]+'</div>'+rows.join('')+'</div>';
+}
+function buildMonthStats(ym){
+  var y=parseInt(ym.split('-')[0]);var m=parseInt(ym.split('-')[1]);
+  var days=new Date(y,m,0).getDate();
+  var activeDays=0,exDone=0,exTotal=0,enDone=0,essays=0,movieMin=0,movieNames=[],novelWords=0,mediaDone=0,mediaTotal=0;
+  for(var d=1;d<=days;d++){
+    var dk=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var hasData=false;
+    if(D.exercise&&D.exercise.daily&&D.exercise.daily[dk]){D.exercise.daily[dk].forEach(function(it){exTotal++;if(it.done)exDone++;if(it.done)hasData=true})}
+    if(D.english&&D.english[dk]){
+      var en=D.english[dk];
+      [en.nc1,en.nc2,en.nc3].forEach(function(item){if(item&&item.done)enDone++;if(item)essays+=(item.count||0)});
+      if(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0)))enDone++;
+      if(en.movie&&en.movie.movies){en.movie.movies.forEach(function(mv){movieMin+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})}
+      hasData=true;
+    }
+    if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined){var tw=countWords(D.novel.content)-(D.novel.baseline[dk]||0);if(tw>0){novelWords+=tw;hasData=true}}
+    if(D.media&&D.media.daily&&D.media.daily[dk]){D.media.daily[dk].forEach(function(it){mediaTotal++;if(it.done)mediaDone++;if(it.done)hasData=true})}
+    if(hasData)activeDays++;
+  }
+  var rows=[];
+  rows.push('<div class="ss-title">'+y+'年'+m+'月 数据汇总</div>');
+  rows.push('<div class="ss-row"><span>活跃天数</span><span class="v">'+activeDays+'/'+days+' 天</span></div>');
+  if(exTotal>0)rows.push('<div class="ss-row"><span>💪 锻炼完成</span><span class="v'+(exTotal>0&&exDone===exTotal?' green':'')+'">'+exDone+'/'+exTotal+'</span></div>');
+  rows.push('<div class="ss-row"><span>📖 英语打卡</span><span class="v">'+enDone+' 次</span></div>');
+  rows.push('<div class="ss-row"><span>📖 背诵总篇数</span><span class="v">'+essays+' 篇</span></div>');
+  if(movieMin>0)rows.push('<div class="ss-row"><span>🎬 电影整理</span><span class="v">'+movieMin+' 分钟</span></div>');
+  if(movieNames.length>0)rows.push('<div class="ss-row" style="flex-direction:column;align-items:flex-start"><span>🎬 看过的电影</span><span style="font-size:12px;color:#856404;margin-top:2px">'+esc(movieNames.join('、'))+'</span></div>');
+  if(novelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说写作</span><span class="v">'+novelWords+' 字</span></div>');
+  if(mediaTotal>0)rows.push('<div class="ss-row"><span>📱 自媒体完成</span><span class="v'+(mediaTotal>0&&mediaDone===mediaTotal?' green':'')+'">'+mediaDone+'/'+mediaTotal+'</span></div>');
+  if(activeDays===0)rows.push('<div style="color:var(--text2);text-align:center;padding:10px">本月暂无数据</div>');
+  return '<div class="sum-stat">'+rows.join('')+'</div>';
+}
+function buildYearStats(y){
+  var activeMonths=0,activeDays=0;
+  var totalExDone=0,totalExTotal=0,totalEnDone=0,totalEssays=0,totalMovieMin=0,totalNovelWords=0,totalMediaDone=0,totalMediaTotal=0;
+  var allMovies=[];
+  for(var m=1;m<=12;m++){
+    var ym=y+'-'+String(m).padStart(2,'0');
+    var days=new Date(y,m,0).getDate();var monthActive=false;var monthDays=0;
+    for(var d=1;d<=days;d++){
+      var dk=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      var hasData=false;
+      if(D.exercise&&D.exercise.daily&&D.exercise.daily[dk]){D.exercise.daily[dk].forEach(function(it){totalExTotal++;if(it.done)totalExDone++;if(it.done)hasData=true})}
+      if(D.english&&D.english[dk]){
+        var en=D.english[dk];
+        [en.nc1,en.nc2,en.nc3].forEach(function(item){if(item&&item.done)totalEnDone++;if(item)totalEssays+=(item.count||0)});
+        if(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0)))totalEnDone++;
+        if(en.movie&&en.movie.movies){en.movie.movies.forEach(function(mv){totalMovieMin+=(mv.minutes||0);if(mv.name)allMovies.push(mv.name)})}
+        hasData=true;
+      }
+      if(D.novel&&D.novel.baseline&&D.novel.baseline[dk]!==undefined){var tw=countWords(D.novel.content)-(D.novel.baseline[dk]||0);if(tw>0){totalNovelWords+=tw;hasData=true}}
+      if(D.media&&D.media.daily&&D.media.daily[dk]){D.media.daily[dk].forEach(function(it){totalMediaTotal++;if(it.done)totalMediaDone++;if(it.done)hasData=true})}
+      if(hasData){monthDays++;activeDays++}
+    }
+    if(monthDays>0){activeMonths++}
+  }
+  var rows=[];
+  rows.push('<div class="ss-title">'+y+'年 年度数据汇总</div>');
+  rows.push('<div class="ss-row"><span>活跃月份</span><span class="v">'+activeMonths+'/12</span></div>');
+  rows.push('<div class="ss-row"><span>活跃天数</span><span class="v">'+activeDays+' 天</span></div>');
+  if(totalExTotal>0)rows.push('<div class="ss-row"><span>💪 锻炼完成</span><span class="v'+(totalExDone===totalExTotal?' green':'')+'">'+totalExDone+'/'+totalExTotal+'</span></div>');
+  rows.push('<div class="ss-row"><span>📖 英语打卡</span><span class="v">'+totalEnDone+' 次</span></div>');
+  rows.push('<div class="ss-row"><span>📖 背诵总篇数</span><span class="v">'+totalEssays+' 篇</span></div>');
+  if(totalMovieMin>0)rows.push('<div class="ss-row"><span>🎬 电影整理</span><span class="v">'+totalMovieMin+' 分钟</span></div>');
+  if(allMovies.length>0)rows.push('<div class="ss-row" style="flex-direction:column;align-items:flex-start"><span>🎬 整理电影数</span><span style="font-size:12px;color:#856404;margin-top:2px">共 '+allMovies.length+' 部</span></div>');
+  if(totalNovelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说写作</span><span class="v">'+totalNovelWords+' 字</span></div>');
+  if(totalMediaTotal>0)rows.push('<div class="ss-row"><span>📱 自媒体完成</span><span class="v'+(totalMediaDone===totalMediaTotal?' green':'')+'">'+totalMediaDone+'/'+totalMediaTotal+'</span></div>');
+  if(activeDays===0)rows.push('<div style="color:var(--text2);text-align:center;padding:10px">本年暂无数据</div>');
+  return '<div class="sum-stat">'+rows.join('')+'</div>';
+}
+function renderSummary(){
+  var html='<div class="sum-tabs">';
+  html+='<div class="sum-tab'+(sumView==='calendar'?' active':'')+'" data-tab="calendar">📅 日历</div>';
+  html+='<div class="sum-tab'+(sumView==='monthly'?' active':'')+'" data-tab="monthly">📊 月报</div>';
+  html+='<div class="sum-tab'+(sumView==='yearly'?' active':'')+'" data-tab="yearly">📋 年报</div>';
+  html+='</div>';
+  if(sumView==='calendar'){
+    html+=renderCalendar();
+  }else if(sumView==='monthly'){
+    html+=renderMonthlyView();
+  }else if(sumView==='yearly'){
+    html+=renderYearlyView();
+  }
+  return html;
+}
+function renderCalendar(){
+  var y=calCurrent.getFullYear();var m=calCurrent.getMonth();
+  var todayDk=dateKey();
+  var firstDay=new Date(y,m,1);var startDow=firstDay.getDay();
+  var daysInMonth=new Date(y,m+1,0).getDate();
+  var html='<div class="cal-header"><div class="cal-nav">';
+  html+='<button class="cal-nav-btn" data-action="calprev">◀</button>';
+  html+='<span class="cal-title">'+y+'年'+(m+1)+'月</span>';
+  html+='<button class="cal-nav-btn" data-action="calnext">▶</button>';
+  html+='</div><div class="cal-jump">';
+  html+='<button class="cal-jump-btn" data-action="jumpmonth">月报</button>';
+  html+='<button class="cal-jump-btn" data-action="jumpyear">年报</button>';
+  html+='</div></div>';
+  html+='<div class="cal-grid">';
+  for(var i=0;i<7;i++)html+='<div class="cal-dow">'+WEEKDAYS[i]+'</div>';
+  for(var i=0;i<startDow;i++)html+='<div></div>';
+  for(var d=1;d<=daysInMonth;d++){
+    var dk=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var isToday=dk===todayDk;
+    var isSelected=dk===calSelectedDate&&!isToday;
+    var hasData=dayHasData(dk);
+    var cls='cal-day';if(isToday)cls+=' today';if(hasData)cls+=' has-data';if(isSelected)cls+=' selected';
+    html+='<div class="'+cls+'" data-dk="'+dk+'">'+d+'</div>';
+  }
+  html+='</div>';
+  html+=buildDayInfo(calSelectedDate);
+  return html;
+}
+function renderMonthlyView(){
+  var y=calCurrent.getFullYear();var m=calCurrent.getMonth();
+  var html='<div class="cal-header"><div class="cal-nav">';
+  html+='<button class="cal-nav-btn" data-action="mprev">◀</button>';
+  html+='<span class="cal-title">'+y+'年'+(m+1)+'月</span>';
+  html+='<button class="cal-nav-btn" data-action="mnext">▶</button>';
+  html+='</div><div class="cal-jump">';
+  html+='<button class="cal-jump-btn" data-action="jumpcal">日历</button>';
+  html+='<button class="cal-jump-btn" data-action="jumpyear">年报</button>';
+  html+='</div></div>';
+  html+=buildMonthStats(y+'-'+String(m+1).padStart(2,'0'));
+  return html;
+}
+function renderYearlyView(){
+  var y=calCurrent.getFullYear();
+  var html='<div class="cal-header"><div class="cal-nav">';
+  html+='<button class="cal-nav-btn" data-action="yprev">◀</button>';
+  html+='<span class="cal-title">'+y+'年</span>';
+  html+='<button class="cal-nav-btn" data-action="ynext">▶</button>';
+  html+='</div><div class="cal-jump">';
+  html+='<button class="cal-jump-btn" data-action="jumpcal">日历</button>';
+  html+='<button class="cal-jump-btn" data-action="jumpmonth">月报</button>';
+  html+='</div></div>';
+  html+=buildYearStats(y);
+  return html;
+}
+function initSummary(){
+  // Tab switching
+  document.querySelectorAll('.sum-tab').forEach(function(tab){
+    tab.addEventListener('click',function(){
+      sumView=tab.dataset.tab;renderPage();
+    });
+  });
+  // Calendar navigation
+  document.querySelectorAll('[data-action=calprev]').forEach(function(b){b.addEventListener('click',function(){calCurrent.setMonth(calCurrent.getMonth()-1);renderPage()})});
+  document.querySelectorAll('[data-action=calnext]').forEach(function(b){b.addEventListener('click',function(){calCurrent.setMonth(calCurrent.getMonth()+1);renderPage()})});
+  document.querySelectorAll('[data-action=mprev]').forEach(function(b){b.addEventListener('click',function(){calCurrent.setMonth(calCurrent.getMonth()-1);renderPage()})});
+  document.querySelectorAll('[data-action=mnext]').forEach(function(b){b.addEventListener('click',function(){calCurrent.setMonth(calCurrent.getMonth()+1);renderPage()})});
+  document.querySelectorAll('[data-action=yprev]').forEach(function(b){b.addEventListener('click',function(){calCurrent.setFullYear(calCurrent.getFullYear()-1);renderPage()})});
+  document.querySelectorAll('[data-action=ynext]').forEach(function(b){b.addEventListener('click',function(){calCurrent.setFullYear(calCurrent.getFullYear()+1);renderPage()})});
+  // Jump buttons
+  document.querySelectorAll('[data-action=jumpcal]').forEach(function(b){b.addEventListener('click',function(){sumView='calendar';renderPage()})});
+  document.querySelectorAll('[data-action=jumpmonth]').forEach(function(b){b.addEventListener('click',function(){sumView='monthly';renderPage()})});
+  document.querySelectorAll('[data-action=jumpyear]').forEach(function(b){b.addEventListener('click',function(){sumView='yearly';renderPage()})});
+  // Date click in calendar
+  document.querySelectorAll('.cal-day[data-dk]').forEach(function(el){
+    el.addEventListener('click',function(){
+      calSelectedDate=el.dataset.dk;renderPage();
+    });
+  });
 }
 // ===================== INIT =====================
 loadData();
