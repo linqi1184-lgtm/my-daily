@@ -138,6 +138,9 @@ function loadData(){
   if(!D.media)D.media={weekly:{},daily:{}};
   if(!D.media.weekly)D.media.weekly={};
   if(!D.media.daily)D.media.daily={};
+  if(!D.guide)D.guide={weeklyGoal:{},daily:{}};
+  if(!D.guide.weeklyGoal)D.guide.weeklyGoal={};
+  if(!D.guide.daily)D.guide.daily={};
 }
 // ===== UTILS =====
 var WEEKDAYS=['日','一','二','三','四','五','六'];
@@ -156,6 +159,7 @@ var NAV=[
   {id:'english',icon:'📖',label:'学英语'},
   {id:'novel',icon:'✍️',label:'写小说'},
   {id:'media',icon:'📱',label:'自媒体'},
+  {id:'guide',icon:'🎫',label:'英导'},
   {id:'summary',icon:'📊',label:'汇总'},
 ];
 var currentPage='exercise';
@@ -179,12 +183,14 @@ function renderPage(){
   else if(currentPage==='english')html+=renderEnglish();
   else if(currentPage==='novel')html+=renderNovel();
   else if(currentPage==='media')html+=renderMedia();
+  else if(currentPage==='guide')html+=renderGuide();
   else if(currentPage==='summary')html+=renderSummary();
   c.innerHTML=html;
   if(currentPage==='exercise')initExercise();
   else if(currentPage==='english')initEnglish();
   else if(currentPage==='novel')initNovel();
   else if(currentPage==='media')initMedia();
+  else if(currentPage==='guide')initGuide();
   else if(currentPage==='summary')initSummary();
 }
 // ===== ENSURE FUNCTIONS =====
@@ -216,6 +222,10 @@ function ensureMediaDaily(dk){
     save();
   }
   return D.media.daily[dk];
+}
+function ensureGuideDaily(dk){
+  if(!D.guide.daily[dk])D.guide.daily[dk]={videos:0,questions:0};
+  return D.guide.daily[dk];
 }
 // ===================== PAGE: EXERCISE =====================
 function renderExercise(){
@@ -423,6 +433,54 @@ function initMedia(){
   var wg=document.getElementById('media-weekly');
   wg.addEventListener('input',function(){D.media.weekly[wk]=wg.value;debounce(function(){save();toast('已保存')},'media_wg')});
 }
+// ===================== PAGE: GUIDE (英文导游考试) =====================
+function renderGuide(){
+  var dk=dateKey();var wk=weekKey();
+  var today=ensureGuideDaily(dk);
+  // Totals
+  var totalVideos=0,totalQuestions=0;
+  Object.keys(D.guide.daily).forEach(function(k){
+    totalVideos+=(D.guide.daily[k].videos||0);
+    totalQuestions+=(D.guide.daily[k].questions||0);
+  });
+  var html='<div class="weekly-goal"><label>🎯 本周英导学习目标</label>';
+  html+='<textarea id="guide-weekly" placeholder="例：本周看完10个视频，刷完200道题">'+esc(D.guide.weeklyGoal[wk]||'')+'</textarea>';
+  html+='<div style="font-size:12px;color:var(--text2);margin-top:4px">'+fmtWeekRange(wk)+'</div></div>';
+  html+='<div class="card"><div class="card-title">今日学习记录</div>';
+  html+='<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">';
+  html+='<div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;min-width:70px">📺 看了视频</span><input type="number" id="guide-videos" min="0" value="'+(today.videos||0)+'" placeholder="视频数" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit" /><span style="font-size:12px;color:var(--text2)">个</span></div>';
+  html+='<div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;min-width:70px">📝 刷了题目</span><input type="number" id="guide-questions" min="0" value="'+(today.questions||0)+'" placeholder="题数" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit" /><span style="font-size:12px;color:var(--text2)">题</span></div>';
+  html+='</div>';
+  html+='<button class="btn btn-primary" id="guide-save-btn" style="width:100%">保存</button></div>';
+  // Stats
+  html+='<div class="novel-stats"><div class="stat-box"><div class="num" style="color:var(--primary)">'+(today.videos||0)+'</div><div class="lbl">今日视频</div></div><div class="stat-box"><div class="num" style="color:var(--success)">'+(today.questions||0)+'</div><div class="lbl">今日刷题</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+totalVideos+'</div><div class="lbl">总视频</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+totalQuestions+'</div><div class="lbl">总刷题</div></div></div>';
+  // Weekly stats
+  var weekVideos=0,weekQuestions=0;
+  var monday=new Date(wk);
+  for(var i=0;i<7;i++){var d=new Date(monday);d.setDate(d.getDate()+i);var dk2=dateKey(d);
+    if(D.guide.daily[dk2]){weekVideos+=(D.guide.daily[dk2].videos||0);weekQuestions+=(D.guide.daily[dk2].questions||0)}
+  }
+  html+='<div class="card"><div class="card-title">本周统计</div>';
+  html+='<div class="progress-info-row"><span>📺 本周视频</span><span class="val">'+weekVideos+' 个</span></div>';
+  html+='<div class="progress-info-row"><span>📝 本周刷题</span><span class="val">'+weekQuestions+' 题</span></div>';
+  html+='</div>';
+  return html;
+}
+function initGuide(){
+  var dk=dateKey();var wk=weekKey();
+  var today=ensureGuideDaily(dk);
+  var vInput=document.getElementById('guide-videos');
+  var qInput=document.getElementById('guide-questions');
+  var saveBtn=document.getElementById('guide-save-btn');
+  function saveToday(){
+    today.videos=parseInt(vInput.value)||0;
+    today.questions=parseInt(qInput.value)||0;
+    save();renderPage();toast('已保存');
+  }
+  saveBtn.addEventListener('click',saveToday);
+  var wg=document.getElementById('guide-weekly');
+  wg.addEventListener('input',function(){D.guide.weeklyGoal[wk]=wg.value;debounce(function(){save();toast('已保存')},'guide_wg')});
+}
 // ===================== PAGE: SUMMARY =====================
 var sumView='calendar'; // calendar | monthly | yearly
 var calCurrent=new Date(); // current displayed month in calendar
@@ -434,6 +492,7 @@ function dayHasData(dk){
   if(D.english&&D.english[dk])return true;
   if(D.media&&D.media.daily&&D.media.daily[dk]&&D.media.daily[dk].length>0)return true;
   if(D.novel&&D.novel.dailyWords&&(D.novel.dailyWords[dk]||0)>0)return true;
+  if(D.guide&&D.guide.daily&&D.guide.daily[dk]&&((D.guide.daily[dk].videos||0)>0||(D.guide.daily[dk].questions||0)>0))return true;
   return false;
 }
 function buildDayInfo(dk){
@@ -476,6 +535,11 @@ function buildDayInfo(dk){
       mItems.forEach(function(it){rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:var(--text2)"><span>'+(it.done?'✅':'⬜')+' '+esc(it.label)+'</span></div>')});
     }
   }
+  // Guide (英导)
+  if(D.guide&&D.guide.daily&&D.guide.daily[dk]){
+    var gv=D.guide.daily[dk].videos||0;var gq=D.guide.daily[dk].questions||0;
+    if(gv>0||gq>0){hasAny=true;rows.push('<div class="ci-row"><span>🎫 英导学习</span><span class="v">'+gv+' 视频 / '+gq+' 题</span></div>')}
+  }
   if(!hasAny)return '<div class="cal-day-info"><div class="ci-title">'+fmtDateShort(dk)+' 无记录</div><div style="color:var(--text2)">这一天没有数据</div></div>';
   var d=new Date(dk);
   return '<div class="cal-day-info"><div class="ci-title">'+d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日 星期'+WEEKDAYS[d.getDay()]+'</div>'+rows.join('')+'</div>';
@@ -484,6 +548,7 @@ function buildMonthStats(ym){
   var y=parseInt(ym.split('-')[0]);var m=parseInt(ym.split('-')[1]);
   var days=new Date(y,m,0).getDate();
   var activeDays=0,exDone=0,exTotal=0,enDone=0,essays=0,movieMin=0,movieNames=[],novelWords=0,mediaDone=0,mediaTotal=0;
+  var guideVideos=0,guideQuestions=0;
   var totalNovelAll=0; // total novel words across all time
   for(var d=1;d<=days;d++){
     var dk=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
@@ -498,6 +563,7 @@ function buildMonthStats(ym){
     }
     if(D.novel&&D.novel.dailyWords){var tw=D.novel.dailyWords[dk]||0;if(tw>0){novelWords+=tw;hasData=true}}
     if(D.media&&D.media.daily&&D.media.daily[dk]){D.media.daily[dk].forEach(function(it){mediaTotal++;if(it.done)mediaDone++;if(it.done)hasData=true})}
+    if(D.guide&&D.guide.daily&&D.guide.daily[dk]){var gv2=D.guide.daily[dk].videos||0;var gq2=D.guide.daily[dk].questions||0;if(gv2>0||gq2>0){guideVideos+=gv2;guideQuestions+=gq2;hasData=true}}
     if(hasData)activeDays++;
   }
   // Calculate all-time total novel words
@@ -513,12 +579,14 @@ function buildMonthStats(ym){
   if(novelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说本月字数</span><span class="v">'+novelWords.toLocaleString()+' 字</span></div>');
   rows.push('<div class="ss-row"><span>✍️ 小说总字数</span><span class="v">'+totalNovelAll.toLocaleString()+' 字</span></div>');
   if(mediaTotal>0)rows.push('<div class="ss-row"><span>📱 自媒体完成</span><span class="v'+(mediaTotal>0&&mediaDone===mediaTotal?' green':'')+'">'+mediaDone+'/'+mediaTotal+'</span></div>');
+  if(guideVideos>0||guideQuestions>0)rows.push('<div class="ss-row"><span>🎫 英导学习</span><span class="v">'+guideVideos+' 视频 / '+guideQuestions+' 题</span></div>');
   if(activeDays===0)rows.push('<div style="color:var(--text2);text-align:center;padding:10px">本月暂无数据</div>');
   return '<div class="sum-stat">'+rows.join('')+'</div>';
 }
 function buildYearStats(y){
   var activeMonths=0,activeDays=0;
   var totalExDone=0,totalExTotal=0,totalEnDone=0,totalEssays=0,totalMovieMin=0,totalNovelWords=0,totalNovelAll=0,totalMediaDone=0,totalMediaTotal=0;
+  var totalGuideVideos=0,totalGuideQuestions=0;
   var allMovies=[];
   for(var m=1;m<=12;m++){
     var ym=y+'-'+String(m).padStart(2,'0');
@@ -536,6 +604,7 @@ function buildYearStats(y){
       }
       if(D.novel&&D.novel.dailyWords){var tw=D.novel.dailyWords[dk]||0;if(tw>0){totalNovelWords+=tw;hasData=true}}
       if(D.media&&D.media.daily&&D.media.daily[dk]){D.media.daily[dk].forEach(function(it){totalMediaTotal++;if(it.done)totalMediaDone++;if(it.done)hasData=true})}
+      if(D.guide&&D.guide.daily&&D.guide.daily[dk]){var gv3=D.guide.daily[dk].videos||0;var gq3=D.guide.daily[dk].questions||0;if(gv3>0||gq3>0){totalGuideVideos+=gv3;totalGuideQuestions+=gq3;hasData=true}}
       if(hasData){monthDays++;activeDays++}
     }
     if(monthDays>0){activeMonths++}
@@ -554,6 +623,7 @@ function buildYearStats(y){
   if(totalNovelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说年度字数</span><span class="v">'+totalNovelWords.toLocaleString()+' 字</span></div>');
   rows.push('<div class="ss-row"><span>✍️ 小说总字数</span><span class="v">'+totalNovelAll.toLocaleString()+' 字</span></div>');
   if(totalMediaTotal>0)rows.push('<div class="ss-row"><span>📱 自媒体完成</span><span class="v'+(totalMediaDone===totalMediaTotal?' green':'')+'">'+totalMediaDone+'/'+totalMediaTotal+'</span></div>');
+  if(totalGuideVideos>0||totalGuideQuestions>0)rows.push('<div class="ss-row"><span>🎫 英导学习</span><span class="v">'+totalGuideVideos+' 视频 / '+totalGuideQuestions+' 题</span></div>');
   if(activeDays===0)rows.push('<div style="color:var(--text2);text-align:center;padding:10px">本年暂无数据</div>');
   return '<div class="sum-stat">'+rows.join('')+'</div>';
 }
