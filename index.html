@@ -125,19 +125,16 @@ var STORE_KEY='daily_app_v4';
 function save(){localStorage.setItem(STORE_KEY,JSON.stringify(D))}
 function loadData(){
   try{var raw=localStorage.getItem(STORE_KEY);if(raw){D=JSON.parse(raw)}else{D={}}}catch(e){D={}}
-  if(!D.exercise)D.exercise={weekly:{},daily:{}};
+  if(!D.exercise)D.exercise={weekly:{},daily:{},weights:{}};
   if(!D.exercise.weekly)D.exercise.weekly={};
   if(!D.exercise.daily)D.exercise.daily={};
+  if(!D.exercise.weights)D.exercise.weights={};
   if(!D.english)D.english={};
-  if(!D.novel)D.novel={weeklyGoal:{},dailyWords:{}};
+  if(!D.novel)D.novel={weeklyGoal:{},daily:{}};
   if(!D.novel.weeklyGoal)D.novel.weeklyGoal={};
-  if(!D.novel.dailyWords)D.novel.dailyWords={};
+  if(!D.novel.daily)D.novel.daily={};
   // Migrate old novel format
   if(D.novel.content!==undefined){delete D.novel.content;delete D.novel.baseline;delete D.novel.weekly}
-  if(!D.novel.dailyGoal)D.novel.dailyGoal=10000;
-  if(!D.media)D.media={weekly:{},daily:{}};
-  if(!D.media.weekly)D.media.weekly={};
-  if(!D.media.daily)D.media.daily={};
   if(!D.guide)D.guide={weeklyGoal:{},daily:{}};
   if(!D.guide.weeklyGoal)D.guide.weeklyGoal={};
   if(!D.guide.daily)D.guide.daily={};
@@ -158,7 +155,6 @@ var NAV=[
   {id:'exercise',icon:'💪',label:'锻炼'},
   {id:'english',icon:'📖',label:'学英语'},
   {id:'novel',icon:'✍️',label:'写小说'},
-  {id:'media',icon:'📱',label:'自媒体'},
   {id:'guide',icon:'🎫',label:'英导'},
   {id:'summary',icon:'📊',label:'汇总'},
 ];
@@ -182,14 +178,12 @@ function renderPage(){
   if(currentPage==='exercise')html+=renderExercise();
   else if(currentPage==='english')html+=renderEnglish();
   else if(currentPage==='novel')html+=renderNovel();
-  else if(currentPage==='media')html+=renderMedia();
   else if(currentPage==='guide')html+=renderGuide();
   else if(currentPage==='summary')html+=renderSummary();
   c.innerHTML=html;
   if(currentPage==='exercise')initExercise();
   else if(currentPage==='english')initEnglish();
   else if(currentPage==='novel')initNovel();
-  else if(currentPage==='media')initMedia();
   else if(currentPage==='guide')initGuide();
   else if(currentPage==='summary')initSummary();
 }
@@ -205,23 +199,23 @@ function ensureExerciseDaily(dk){
   return D.exercise.daily[dk];
 }
 function ensureEnglish(dk){
-  if(!D.english[dk])D.english[dk]={nc1:{done:false,count:0},nc2:{done:false,count:0},nc3:{done:false,count:0},movie:{done:false,movies:[]}};
+  if(!D.english[dk])D.english[dk]={};
+  if(!D.english[dk].nc2)D.english[dk].nc2={done:false,count:0};
   if(!D.english[dk].movie)D.english[dk].movie={done:false,movies:[]};
   if(!D.english[dk].movie.movies)D.english[dk].movie.movies=[];
   return D.english[dk];
 }
-function ensureNovel(){if(!D.novel)D.novel={weeklyGoal:{},dailyWords:{}};if(!D.novel.weeklyGoal)D.novel.weeklyGoal={};if(!D.novel.dailyWords)D.novel.dailyWords={};if(!D.novel.dailyGoal)D.novel.dailyGoal=10000;return D.novel}
-function ensureMediaDaily(dk){
-  if(!D.media.daily[dk]){
-    D.media.daily[dk]=[
-      {id:uid(),label:'写文案/脚本',done:false},
-      {id:uid(),label:'拍摄/录制',done:false},
-      {id:uid(),label:'剪辑',done:false},
-      {id:uid(),label:'发布内容',done:false}
+function ensureNovelDaily(dk){
+  if(!D.novel)D.novel={weeklyGoal:{},daily:{}};
+  if(!D.novel.daily)D.novel.daily={};
+  if(!D.novel.daily[dk]){
+    D.novel.daily[dk]=[
+      {id:uid(),label:'每日一章',done:false},
+      {id:uid(),label:'刷榜一小时',done:false}
     ];
     save();
   }
-  return D.media.daily[dk];
+  return D.novel.daily[dk];
 }
 function ensureGuideDaily(dk){
   if(!D.guide.daily[dk])D.guide.daily[dk]={videos:0,questions:0};
@@ -241,8 +235,12 @@ function renderExercise(){
   });
   html+='<div class="add-row"><input type="text" id="ex-add-input" placeholder="添加锻炼项目..." maxlength="30"><button class="btn btn-primary btn-sm" id="ex-add-btn">添加</button></div>';
   html+='</div>';
+  // Weight card
+  var todayWeight=D.exercise.weights[dk];
+  html+='<div class="card"><div class="card-title">⚖️ 今日体重 <span class="badge">'+(todayWeight?todayWeight+' 斤':'未记录')+'</span></div>';
+  html+='<div style="display:flex;gap:8px;align-items:center"><input type="number" id="ex-weight" placeholder="输入今日体重" value="'+(todayWeight||'')+'" step="0.1" min="0" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit" /><span style="color:var(--text2);font-size:13px;flex-shrink:0">斤</span><button class="btn btn-primary" id="ex-weight-btn">保存</button></div></div>';
   // Weekly stats
-  var weekDone=0,weekTotal=0;
+  var weekDone=0,weekTotal=0,weekWeights=[];
   var monday=new Date(wk);
   for(var i=0;i<7;i++){
     var d=new Date(monday);d.setDate(d.getDate()+i);
@@ -250,9 +248,17 @@ function renderExercise(){
     if(D.exercise.daily[dk2]){
       D.exercise.daily[dk2].forEach(function(it){weekTotal++;if(it.done)weekDone++});
     }
+    if(D.exercise.weights[dk2])weekWeights.push({d:(d.getMonth()+1)+'/'+d.getDate(),w:D.exercise.weights[dk2]});
   }
   html+='<div class="card"><div class="card-title">本周统计</div>';
   html+='<div class="progress-info-row"><span>本周完成</span><span class="val">'+weekDone+'/'+weekTotal+'</span></div>';
+  if(weekWeights.length>0){
+    var wFirst=weekWeights[0].w,wLast=weekWeights[weekWeights.length-1].w;
+    var wChange=(wLast-wFirst).toFixed(1);
+    var changeStr=wChange>0?'+'+wChange+'斤':(wChange<0?wChange+'斤':'持平');
+    html+='<div class="progress-info-row"><span>⚖️ 体重记录</span><span class="val">'+weekWeights.map(function(x){return x.d+' '+x.w+'斤'}).join('，')+'</span></div>';
+    if(weekWeights.length>1)html+='<div class="progress-info-row"><span>⚖️ 体重变化</span><span class="val" style="color:'+(wChange<0?'var(--success)':(wChange>0?'var(--danger)':'var(--text2)'))+'">'+changeStr+'</span></div>';
+  }
   html+='</div>';
   return html;
 }
@@ -275,26 +281,23 @@ function initExercise(){
   function addItem(){var v=addInput.value.trim();if(!v)return;items.push({id:uid(),label:v,done:false});save();renderPage();toast('已添加')}
   addBtn.addEventListener('click',addItem);
   addInput.addEventListener('keydown',function(e){if(e.key==='Enter')addItem()});
+  // Weight save
+  var wInput=document.getElementById('ex-weight');
+  var wBtn=document.getElementById('ex-weight-btn');
+  function saveWeight(){var v=parseFloat(wInput.value);if(!v||v<=0){toast('请输入有效体重');return}D.exercise.weights[dk]=v;save();renderPage();toast('体重已记录')}
+  wBtn.addEventListener('click',saveWeight);
+  wInput.addEventListener('keydown',function(e){if(e.key==='Enter')saveWeight()});
   // Weekly goal
   var wg=document.getElementById('ex-weekly');
   wg.addEventListener('input',function(){D.exercise.weekly[wk]=wg.value;debounce(function(){save();toast('已保存')},'ex_wg')});
 }
 // ===================== PAGE: ENGLISH =====================
-var ENGLISH=[
-  {id:'nc1',name:'新概念第一册'},
-  {id:'nc2',name:'新概念第二册'},
-  {id:'nc3',name:'新概念第三册'},
-  {id:'movie',name:'英文电影整理'}
-];
 function renderEnglish(){
   var dk=dateKey();var en=ensureEnglish(dk);var done=0;
-  var ncItems=[en.nc1,en.nc2,en.nc3];ncItems.forEach(function(item){if(item.done)done++});
+  if(en.nc2.done)done++;
   if(en.movie.done||(en.movie.movies&&en.movie.movies.length>0))done++;
-  var html='<div class="card"><div class="card-title">今日英语学习 <span class="badge">'+done+'/4</span></div>';
-  var ncList=[{id:'nc1',name:'新概念第一册',item:en.nc1},{id:'nc2',name:'新概念第二册',item:en.nc2},{id:'nc3',name:'新概念第三册',item:en.nc3}];
-  ncList.forEach(function(nc){
-    html+='<div class="en-item" data-id="'+nc.id+'"><div class="checkbox'+(nc.item.done?' checked':'')+'" data-action="toggle" style="margin-top:2px"></div><div class="en-info"><div class="en-name'+(nc.item.done?' done':'')+'">'+nc.name+'</div><div class="en-count-row"><span style="font-size:12px;color:var(--text2)">今日背诵篇数：</span><input type="number" min="0" value="'+(nc.item.count||0)+'" data-action="count" /><span style="font-size:12px;color:var(--text2)">篇</span></div></div></div>';
-  });
+  var html='<div class="card"><div class="card-title">今日英语学习 <span class="badge">'+done+'/2</span></div>';
+  html+='<div class="en-item" data-id="nc2"><div class="checkbox'+(en.nc2.done?' checked':'')+'" data-action="toggle" style="margin-top:2px"></div><div class="en-info"><div class="en-name'+(en.nc2.done?' done':'')+'">新概念第二册</div><div class="en-count-row"><span style="font-size:12px;color:var(--text2)">今日背诵篇数：</span><input type="number" min="0" value="'+(en.nc2.count||0)+'" data-action="count" /><span style="font-size:12px;color:var(--text2)">篇</span></div></div></div>';
   var movieChecked=en.movie.done;
   html+='<div class="en-item" data-id="movie"><div class="checkbox'+(movieChecked?' checked':'')+'" data-action="toggle" style="margin-top:2px"></div><div class="en-info"><div class="en-name'+(movieChecked?' done':'')+'">英文电影整理</div>';
   if(en.movie.movies&&en.movie.movies.length>0){
@@ -307,14 +310,12 @@ function renderEnglish(){
   html+='<div class="add-task-btn" data-action="addmovie"><span style="font-size:16px">＋</span> 添加一部电影</div>';
   html+='</div></div></div>';
   // Progress stats
-  var totalEssays=(en.nc1.count||0)+(en.nc2.count||0)+(en.nc3.count||0);
+  var totalEssays=(en.nc2.count||0);
   var movieTotalMin=0;var movieNames=[];
   if(en.movie.movies){en.movie.movies.forEach(function(mv){movieTotalMin+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})};
   html+='<div class="card"><div class="card-title">进度统计</div>';
   html+='<div class="progress-info-row"><span>今日背诵总篇数</span><span class="val">'+totalEssays+'</span></div>';
-  html+='<div class="progress-info-row"><span>新概念一册</span><span>'+(en.nc1.count||0)+' 篇</span></div>';
   html+='<div class="progress-info-row"><span>新概念二册</span><span>'+(en.nc2.count||0)+' 篇</span></div>';
-  html+='<div class="progress-info-row"><span>新概念三册</span><span>'+(en.nc3.count||0)+' 篇</span></div>';
   html+='<div class="section-gap"></div>';
   html+='<div class="progress-info-row"><span>英文电影整理</span><span>'+movieTotalMin+' 分钟</span></div>';
   if(movieNames.length>0)html+='<div class="progress-info-row"><span>今日整理的电影</span><span style="color:#856404;font-weight:600">🎬 '+esc(movieNames.join('、'))+'</span></div>';
@@ -323,13 +324,11 @@ function renderEnglish(){
 }
 function initEnglish(){
   var dk=dateKey();var en=ensureEnglish(dk);
-  var ncList=[{id:'nc1',item:en.nc1},{id:'nc2',item:en.nc2},{id:'nc3',item:en.nc3}];
-  ncList.forEach(function(nc){
-    var el=document.querySelector('.en-item[data-id="'+nc.id+'"]');
-    if(!el)return;
-    el.querySelector('[data-action=toggle]').addEventListener('click',function(){nc.item.done=!nc.item.done;save();renderPage();toast(nc.item.done?'打卡成功':'取消打卡')});
-    var ci=el.querySelector('[data-action=count]');if(ci){ci.addEventListener('input',function(){nc.item.count=parseInt(ci.value)||0;debounce(function(){save()},'en_c_'+nc.id,500)});ci.addEventListener('click',function(e){e.stopPropagation()})}
-  });
+  var ncEl=document.querySelector('.en-item[data-id="nc2"]');
+  if(ncEl){
+    ncEl.querySelector('[data-action=toggle]').addEventListener('click',function(){en.nc2.done=!en.nc2.done;save();renderPage();toast(en.nc2.done?'打卡成功':'取消打卡')});
+    var ci=ncEl.querySelector('[data-action=count]');if(ci){ci.addEventListener('input',function(){en.nc2.count=parseInt(ci.value)||0;debounce(function(){save()},'en_c_nc2',500)});ci.addEventListener('click',function(e){e.stopPropagation()})}
+  }
   var movieEl=document.querySelector('.en-item[data-id="movie"]');
   if(!movieEl)return;
   movieEl.querySelector('[data-action=toggle]').addEventListener('click',function(){en.movie.done=!en.movie.done;save();renderPage();toast(en.movie.done?'打卡成功':'取消打卡')});
@@ -349,89 +348,57 @@ function initEnglish(){
 }
 // ===================== PAGE: NOVEL =====================
 function renderNovel(){
-  var novel=ensureNovel();var dk=dateKey();var wk=weekKey();
-  var todayWords=novel.dailyWords[dk]||0;
-  var dailyGoal=novel.dailyGoal||10000;
-  var pct=Math.min(100,Math.round(todayWords/dailyGoal*100));
-  // Calculate total words
-  var totalWords=0;
-  Object.keys(novel.dailyWords).forEach(function(k){totalWords+=novel.dailyWords[k]||0});
-  var html='<div class="weekly-goal"><label>🎯 本周写作目标</label>';
-  html+='<textarea id="novel-weekly" placeholder="例：本周写10000字，完成第3章">'+esc(novel.weeklyGoal[wk]||'')+'</textarea>';
-  html+='<div style="font-size:12px;color:var(--text2);margin-top:4px">'+fmtWeekRange(wk)+'</div></div>';
-  html+='<div class="card"><div class="card-title">每日写作目标 <span class="badge">'+pct+'%</span></div>';
-  html+='<div class="progress-info"><span>今日字数</span><span class="big">'+todayWords.toLocaleString()+' / '+dailyGoal.toLocaleString()+'</span></div>';
-  html+='<div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%"></div></div></div>';
-  html+='<div class="card"><div class="card-title">📝 输入今日字数</div>';
-  html+='<div style="display:flex;gap:8px;margin-bottom:10px"><input type="number" id="novel-input" placeholder="输入今天写了多少字" value="'+(todayWords>0?todayWords:'')+'" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit" min="0" /><button class="btn btn-primary" id="novel-save-btn">保存</button></div>';
-  html+='<div class="novel-stats"><div class="stat-box"><div class="num" style="color:var(--primary)">'+todayWords.toLocaleString()+'</div><div class="lbl">今日字数</div></div><div class="stat-box"><div class="num" style="color:var(--success)">'+totalWords.toLocaleString()+'</div><div class="lbl">总字数</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+Math.max(0,dailyGoal-todayWords).toLocaleString()+'</div><div class="lbl">距目标</div></div></div></div>';
-  // Weekly stats
-  var weekWords=0;
-  var monday=new Date(wk);
-  for(var i=0;i<7;i++){var d=new Date(monday);d.setDate(d.getDate()+i);var dk2=dateKey(d);weekWords+=(novel.dailyWords[dk2]||0)}
-  html+='<div class="card"><div class="card-title">本周统计</div>';
-  html+='<div class="progress-info-row"><span>本周字数</span><span class="val">'+weekWords.toLocaleString()+' 字</span></div>';
-  html+='<div class="progress-info-row"><span>总字数</span><span class="val">'+totalWords.toLocaleString()+' 字</span></div>';
-  html+='</div>';
-  return html;
-}
-function initNovel(){
-  var novel=ensureNovel();var dk=dateKey();var wk=weekKey();
-  var input=document.getElementById('novel-input');
-  var saveBtn=document.getElementById('novel-save-btn');
-  function saveWords(){var v=parseInt(input.value)||0;novel.dailyWords[dk]=v;save();renderPage();toast('已保存')}
-  saveBtn.addEventListener('click',saveWords);
-  var wg=document.getElementById('novel-weekly');
-  wg.addEventListener('input',function(){novel.weeklyGoal[wk]=wg.value;debounce(function(){save();toast('已保存')},'novel_wg')});
-}
-// ===================== PAGE: MEDIA =====================
-function renderMedia(){
   var dk=dateKey();var wk=weekKey();
-  var items=ensureMediaDaily(dk);
+  var items=ensureNovelDaily(dk);
   var done=items.filter(function(i){return i.done}).length;
-  var html='<div class="weekly-goal"><label>🎯 本周自媒体目标</label>';
-  html+='<textarea id="media-weekly" placeholder="例：本周发布3条视频，2条图文">'+esc(D.media.weekly[wk]||'')+'</textarea>';
+  var html='<div class="weekly-goal"><label>🎯 本周写作目标</label>';
+  html+='<textarea id="novel-weekly" placeholder="例：本周完成7章，每天刷榜一小时">'+esc(D.novel.weeklyGoal[wk]||'')+'</textarea>';
   html+='<div style="font-size:12px;color:var(--text2);margin-top:4px">'+fmtWeekRange(wk)+'</div></div>';
-  html+='<div class="card"><div class="card-title">今日自媒体任务 <span class="badge">'+done+'/'+items.length+'</span></div>';
+  html+='<div class="card"><div class="card-title">今日小说任务 <span class="badge">'+done+'/'+items.length+'</span></div>';
   items.forEach(function(item){
     html+='<div class="check-item" data-id="'+item.id+'"><div class="checkbox'+(item.done?' checked':'')+'" data-action="toggle"></div><span class="check-label'+(item.done?' done':'')+'">'+esc(item.label)+'</span><span class="check-del" data-action="del">✕</span></div>';
   });
-  html+='<div class="add-row"><input type="text" id="media-add-input" placeholder="添加任务..." maxlength="30"><button class="btn btn-primary btn-sm" id="media-add-btn">添加</button></div>';
+  html+='<div class="add-row"><input type="text" id="novel-add-input" placeholder="添加任务..." maxlength="30"><button class="btn btn-primary btn-sm" id="novel-add-btn">添加</button></div>';
   html+='</div>';
   // Weekly stats
-  var weekDone=0,weekTotal=0;
+  var weekDone=0,weekTotal=0,weekChapters=0,weekRank=0;
   var monday=new Date(wk);
   for(var i=0;i<7;i++){
     var d=new Date(monday);d.setDate(d.getDate()+i);
     var dk2=dateKey(d);
-    if(D.media.daily[dk2]){
-      D.media.daily[dk2].forEach(function(it){weekTotal++;if(it.done)weekDone++});
+    if(D.novel.daily[dk2]){
+      D.novel.daily[dk2].forEach(function(it){
+        weekTotal++;
+        if(it.done){weekDone++;if(it.label==='每日一章')weekChapters++;if(it.label==='刷榜一小时')weekRank++}
+      });
     }
   }
   html+='<div class="card"><div class="card-title">本周统计</div>';
   html+='<div class="progress-info-row"><span>本周完成</span><span class="val">'+weekDone+'/'+weekTotal+'</span></div>';
+  html+='<div class="progress-info-row"><span>📖 完成章节</span><span class="val">'+weekChapters+' 章</span></div>';
+  html+='<div class="progress-info-row"><span>🔥 刷榜打卡</span><span class="val">'+weekRank+' 次</span></div>';
   html+='</div>';
   return html;
 }
-function initMedia(){
+function initNovel(){
   var dk=dateKey();var wk=weekKey();
-  var items=D.media.daily[dk];
+  var items=D.novel.daily[dk];
   document.querySelectorAll('.check-item').forEach(function(el){
     var id=el.dataset.id;var item=items.find(function(i){return i.id===id});if(!item)return;
     el.querySelector('[data-action=toggle]').addEventListener('click',function(){
       item.done=!item.done;save();renderPage();toast(item.done?'完成！':'取消');
     });
     el.querySelector('[data-action=del]').addEventListener('click',function(){
-      D.media.daily[dk]=items.filter(function(i){return i.id!==id});save();renderPage();toast('已删除');
+      D.novel.daily[dk]=items.filter(function(i){return i.id!==id});save();renderPage();toast('已删除');
     });
   });
-  var addInput=document.getElementById('media-add-input');
-  var addBtn=document.getElementById('media-add-btn');
+  var addInput=document.getElementById('novel-add-input');
+  var addBtn=document.getElementById('novel-add-btn');
   function addItem(){var v=addInput.value.trim();if(!v)return;items.push({id:uid(),label:v,done:false});save();renderPage();toast('已添加')}
   addBtn.addEventListener('click',addItem);
   addInput.addEventListener('keydown',function(e){if(e.key==='Enter')addItem()});
-  var wg=document.getElementById('media-weekly');
-  wg.addEventListener('input',function(){D.media.weekly[wk]=wg.value;debounce(function(){save();toast('已保存')},'media_wg')});
+  var wg=document.getElementById('novel-weekly');
+  wg.addEventListener('input',function(){D.novel.weeklyGoal[wk]=wg.value;debounce(function(){save();toast('已保存')},'novel_wg')});
 }
 // ===================== PAGE: GUIDE (英文导游考试) =====================
 function renderGuide(){
@@ -489,8 +456,9 @@ function monthKey(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMont
 function fmtDateShort(dk){var p=dk.split('-');return parseInt(p[1])+'/'+parseInt(p[2])}
 function dayHasData(dk){
   if(D.exercise&&D.exercise.daily&&D.exercise.daily[dk]&&D.exercise.daily[dk].length>0)return true;
+  if(D.exercise&&D.exercise.weights&&D.exercise.weights[dk])return true;
   if(D.english&&D.english[dk])return true;
-  if(D.media&&D.media.daily&&D.media.daily[dk]&&D.media.daily[dk].length>0)return true;
+  if(D.novel&&D.novel.daily&&D.novel.daily[dk]&&D.novel.daily[dk].length>0)return true;
   if(D.novel&&D.novel.dailyWords&&(D.novel.dailyWords[dk]||0)>0)return true;
   if(D.guide&&D.guide.daily&&D.guide.daily[dk]&&((D.guide.daily[dk].videos||0)>0||(D.guide.daily[dk].questions||0)>0))return true;
   return false;
@@ -508,32 +476,36 @@ function buildDayInfo(dk){
       exItems.forEach(function(it){rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:var(--text2)"><span>'+(it.done?'✅':'⬜')+' '+esc(it.label)+'</span></div>')});
     }
   }
+  if(D.exercise&&D.exercise.weights&&D.exercise.weights[dk]){
+    hasAny=true;
+    rows.push('<div class="ci-row"><span>⚖️ 今日体重</span><span class="v">'+D.exercise.weights[dk]+' 斤</span></div>');
+  }
   // English
   if(D.english&&D.english[dk]){
     var en=D.english[dk];var enDone=0;var essays=0;
-    [en.nc1,en.nc2,en.nc3].forEach(function(item){if(item&&item.done)enDone++;if(item)essays+=(item.count||0)});
+    if(en.nc2){if(en.nc2.done)enDone++;essays+=(en.nc2.count||0)}
     if(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0)))enDone++;
     var movieMin=0;var movieNames=[];
     if(en.movie&&en.movie.movies){en.movie.movies.forEach(function(mv){movieMin+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})}
     hasAny=true;
-    rows.push('<div class="ci-row"><span>📖 英语打卡</span><span class="v">'+enDone+'/4</span></div>');
-    rows.push('<div class="ci-row"><span>📖 背诵篇数</span><span class="v">'+essays+' 篇</span></div>');
+    rows.push('<div class="ci-row"><span>📖 英语打卡</span><span class="v">'+enDone+'/2</span></div>');
+    if(essays>0)rows.push('<div class="ci-row"><span>📖 背诵篇数</span><span class="v">'+essays+' 篇</span></div>');
     if(movieMin>0)rows.push('<div class="ci-row"><span>🎬 电影整理</span><span class="v">'+movieMin+' 分钟</span></div>');
     if(movieNames.length>0)rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:#856404"><span>'+esc(movieNames.join('、'))+'</span></div>');
   }
   // Novel
+  if(D.novel&&D.novel.daily&&D.novel.daily[dk]){
+    var nItems=D.novel.daily[dk];var nDone=nItems.filter(function(i){return i.done}).length;
+    if(nItems.length>0){
+      hasAny=true;
+      rows.push('<div class="ci-row"><span>✍️ 小说任务</span><span class="v'+(nDone===nItems.length?' ci-done':'')+'">'+nDone+'/'+nItems.length+'</span></div>');
+      nItems.forEach(function(it){rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:var(--text2)"><span>'+(it.done?'✅':'⬜')+' '+esc(it.label)+'</span></div>')});
+    }
+  }
+  // Old novel word records (historical)
   if(D.novel&&D.novel.dailyWords){
     var tw=D.novel.dailyWords[dk]||0;
     if(tw>0){hasAny=true;rows.push('<div class="ci-row"><span>✍️ 小说写作</span><span class="v">'+tw.toLocaleString()+' 字</span></div>')}
-  }
-  // Media
-  if(D.media&&D.media.daily&&D.media.daily[dk]){
-    var mItems=D.media.daily[dk];var mDone=mItems.filter(function(i){return i.done}).length;
-    if(mItems.length>0){
-      hasAny=true;
-      rows.push('<div class="ci-row"><span>📱 自媒体</span><span class="v'+(mDone===mItems.length?' ci-done':'')+'">'+mDone+'/'+mItems.length+'</span></div>');
-      mItems.forEach(function(it){rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:var(--text2)"><span>'+(it.done?'✅':'⬜')+' '+esc(it.label)+'</span></div>')});
-    }
   }
   // Guide (英导)
   if(D.guide&&D.guide.daily&&D.guide.daily[dk]){
@@ -547,46 +519,50 @@ function buildDayInfo(dk){
 function buildMonthStats(ym){
   var y=parseInt(ym.split('-')[0]);var m=parseInt(ym.split('-')[1]);
   var days=new Date(y,m,0).getDate();
-  var activeDays=0,exDone=0,exTotal=0,enDone=0,essays=0,movieMin=0,movieNames=[],novelWords=0,mediaDone=0,mediaTotal=0;
+  var activeDays=0,exDone=0,exTotal=0,enDone=0,essays=0,movieMin=0,movieNames=[],novelDone=0,novelTotal=0,novelChapters=0,novelRank=0;
   var guideVideos=0,guideQuestions=0;
-  var totalNovelAll=0; // total novel words across all time
+  var weightFirst=null,weightLast=null,weightCount=0;
   for(var d=1;d<=days;d++){
     var dk=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     var hasData=false;
     if(D.exercise&&D.exercise.daily&&D.exercise.daily[dk]){D.exercise.daily[dk].forEach(function(it){exTotal++;if(it.done)exDone++;if(it.done)hasData=true})}
+    if(D.exercise&&D.exercise.weights&&D.exercise.weights[dk]){var wv=D.exercise.weights[dk];if(weightFirst===null)weightFirst=wv;weightLast=wv;weightCount++;hasData=true}
     if(D.english&&D.english[dk]){
       var en=D.english[dk];
-      [en.nc1,en.nc2,en.nc3].forEach(function(item){if(item&&item.done)enDone++;if(item)essays+=(item.count||0)});
+      if(en.nc2){if(en.nc2.done)enDone++;essays+=(en.nc2.count||0)}
       if(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0)))enDone++;
       if(en.movie&&en.movie.movies){en.movie.movies.forEach(function(mv){movieMin+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})}
       hasData=true;
     }
-    if(D.novel&&D.novel.dailyWords){var tw=D.novel.dailyWords[dk]||0;if(tw>0){novelWords+=tw;hasData=true}}
-    if(D.media&&D.media.daily&&D.media.daily[dk]){D.media.daily[dk].forEach(function(it){mediaTotal++;if(it.done)mediaDone++;if(it.done)hasData=true})}
+    if(D.novel&&D.novel.daily&&D.novel.daily[dk]){D.novel.daily[dk].forEach(function(it){novelTotal++;if(it.done){novelDone++;if(it.label==='每日一章')novelChapters++;if(it.label==='刷榜一小时')novelRank++;hasData=true}})}
     if(D.guide&&D.guide.daily&&D.guide.daily[dk]){var gv2=D.guide.daily[dk].videos||0;var gq2=D.guide.daily[dk].questions||0;if(gv2>0||gq2>0){guideVideos+=gv2;guideQuestions+=gq2;hasData=true}}
     if(hasData)activeDays++;
   }
-  // Calculate all-time total novel words
-  if(D.novel&&D.novel.dailyWords){Object.keys(D.novel.dailyWords).forEach(function(k){totalNovelAll+=D.novel.dailyWords[k]||0})}
+  // Old novel word records (historical)
+  var novelWords=0;
+  if(D.novel&&D.novel.dailyWords){for(var d2=1;d2<=days;d2++){var dk3=y+'-'+String(m).padStart(2,'0')+'-'+String(d2).padStart(2,'0');novelWords+=(D.novel.dailyWords[dk3]||0)}}
   var rows=[];
   rows.push('<div class="ss-title">'+y+'年'+m+'月 数据汇总</div>');
   rows.push('<div class="ss-row"><span>活跃天数</span><span class="v">'+activeDays+'/'+days+' 天</span></div>');
   if(exTotal>0)rows.push('<div class="ss-row"><span>💪 锻炼完成</span><span class="v'+(exTotal>0&&exDone===exTotal?' green':'')+'">'+exDone+'/'+exTotal+'</span></div>');
+  if(weightCount>0)rows.push('<div class="ss-row"><span>⚖️ 体重记录</span><span class="v">'+weightFirst+' → '+weightLast+' 斤（'+weightCount+' 次）</span></div>');
   rows.push('<div class="ss-row"><span>📖 英语打卡</span><span class="v">'+enDone+' 次</span></div>');
-  rows.push('<div class="ss-row"><span>📖 背诵总篇数</span><span class="v">'+essays+' 篇</span></div>');
+  if(essays>0)rows.push('<div class="ss-row"><span>📖 背诵总篇数</span><span class="v">'+essays+' 篇</span></div>');
   if(movieMin>0)rows.push('<div class="ss-row"><span>🎬 电影整理</span><span class="v">'+movieMin+' 分钟</span></div>');
   if(movieNames.length>0)rows.push('<div class="ss-row" style="flex-direction:column;align-items:flex-start"><span>🎬 看过的电影</span><span style="font-size:12px;color:#856404;margin-top:2px">'+esc(movieNames.join('、'))+'</span></div>');
-  if(novelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说本月字数</span><span class="v">'+novelWords.toLocaleString()+' 字</span></div>');
-  rows.push('<div class="ss-row"><span>✍️ 小说总字数</span><span class="v">'+totalNovelAll.toLocaleString()+' 字</span></div>');
-  if(mediaTotal>0)rows.push('<div class="ss-row"><span>📱 自媒体完成</span><span class="v'+(mediaTotal>0&&mediaDone===mediaTotal?' green':'')+'">'+mediaDone+'/'+mediaTotal+'</span></div>');
+  if(novelTotal>0)rows.push('<div class="ss-row"><span>✍️ 小说任务完成</span><span class="v'+(novelTotal>0&&novelDone===novelTotal?' green':'')+'">'+novelDone+'/'+novelTotal+'</span></div>');
+  if(novelChapters>0)rows.push('<div class="ss-row"><span>📖 完成章节</span><span class="v">'+novelChapters+' 章</span></div>');
+  if(novelRank>0)rows.push('<div class="ss-row"><span>🔥 刷榜打卡</span><span class="v">'+novelRank+' 次</span></div>');
+  if(novelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说字数（旧记录）</span><span class="v">'+novelWords.toLocaleString()+' 字</span></div>');
   if(guideVideos>0||guideQuestions>0)rows.push('<div class="ss-row"><span>🎫 英导学习</span><span class="v">'+guideVideos+' 视频 / '+guideQuestions+' 题</span></div>');
   if(activeDays===0)rows.push('<div style="color:var(--text2);text-align:center;padding:10px">本月暂无数据</div>');
   return '<div class="sum-stat">'+rows.join('')+'</div>';
 }
 function buildYearStats(y){
   var activeMonths=0,activeDays=0;
-  var totalExDone=0,totalExTotal=0,totalEnDone=0,totalEssays=0,totalMovieMin=0,totalNovelWords=0,totalNovelAll=0,totalMediaDone=0,totalMediaTotal=0;
+  var totalExDone=0,totalExTotal=0,totalEnDone=0,totalEssays=0,totalMovieMin=0,totalNovelDone=0,totalNovelTotal=0,totalNovelChapters=0,totalNovelRank=0,totalNovelWords=0;
   var totalGuideVideos=0,totalGuideQuestions=0;
+  var weightFirst=null,weightLast=null,weightCount=0;
   var allMovies=[];
   for(var m=1;m<=12;m++){
     var ym=y+'-'+String(m).padStart(2,'0');
@@ -595,34 +571,35 @@ function buildYearStats(y){
       var dk=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
       var hasData=false;
       if(D.exercise&&D.exercise.daily&&D.exercise.daily[dk]){D.exercise.daily[dk].forEach(function(it){totalExTotal++;if(it.done)totalExDone++;if(it.done)hasData=true})}
+      if(D.exercise&&D.exercise.weights&&D.exercise.weights[dk]){var wv2=D.exercise.weights[dk];if(weightFirst===null)weightFirst=wv2;weightLast=wv2;weightCount++;hasData=true}
       if(D.english&&D.english[dk]){
         var en=D.english[dk];
-        [en.nc1,en.nc2,en.nc3].forEach(function(item){if(item&&item.done)totalEnDone++;if(item)totalEssays+=(item.count||0)});
+        if(en.nc2){if(en.nc2.done)totalEnDone++;totalEssays+=(en.nc2.count||0)}
         if(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0)))totalEnDone++;
         if(en.movie&&en.movie.movies){en.movie.movies.forEach(function(mv){totalMovieMin+=(mv.minutes||0);if(mv.name)allMovies.push(mv.name)})}
         hasData=true;
       }
-      if(D.novel&&D.novel.dailyWords){var tw=D.novel.dailyWords[dk]||0;if(tw>0){totalNovelWords+=tw;hasData=true}}
-      if(D.media&&D.media.daily&&D.media.daily[dk]){D.media.daily[dk].forEach(function(it){totalMediaTotal++;if(it.done)totalMediaDone++;if(it.done)hasData=true})}
+      if(D.novel&&D.novel.daily&&D.novel.daily[dk]){D.novel.daily[dk].forEach(function(it){totalNovelTotal++;if(it.done){totalNovelDone++;if(it.label==='每日一章')totalNovelChapters++;if(it.label==='刷榜一小时')totalNovelRank++;hasData=true}})}
+      if(D.novel&&D.novel.dailyWords){var tw=D.novel.dailyWords[dk]||0;if(tw>0){totalNovelWords+=tw}}
       if(D.guide&&D.guide.daily&&D.guide.daily[dk]){var gv3=D.guide.daily[dk].videos||0;var gq3=D.guide.daily[dk].questions||0;if(gv3>0||gq3>0){totalGuideVideos+=gv3;totalGuideQuestions+=gq3;hasData=true}}
       if(hasData){monthDays++;activeDays++}
     }
     if(monthDays>0){activeMonths++}
   }
-  // Calculate all-time total novel words
-  if(D.novel&&D.novel.dailyWords){Object.keys(D.novel.dailyWords).forEach(function(k){totalNovelAll+=D.novel.dailyWords[k]||0})}
   var rows=[];
   rows.push('<div class="ss-title">'+y+'年 年度数据汇总</div>');
   rows.push('<div class="ss-row"><span>活跃月份</span><span class="v">'+activeMonths+'/12</span></div>');
   rows.push('<div class="ss-row"><span>活跃天数</span><span class="v">'+activeDays+' 天</span></div>');
   if(totalExTotal>0)rows.push('<div class="ss-row"><span>💪 锻炼完成</span><span class="v'+(totalExDone===totalExTotal?' green':'')+'">'+totalExDone+'/'+totalExTotal+'</span></div>');
+  if(weightCount>0)rows.push('<div class="ss-row"><span>⚖️ 体重变化</span><span class="v">'+weightFirst+' → '+weightLast+' 斤（'+weightCount+' 次记录）</span></div>');
   rows.push('<div class="ss-row"><span>📖 英语打卡</span><span class="v">'+totalEnDone+' 次</span></div>');
-  rows.push('<div class="ss-row"><span>📖 背诵总篇数</span><span class="v">'+totalEssays+' 篇</span></div>');
+  if(totalEssays>0)rows.push('<div class="ss-row"><span>📖 背诵总篇数</span><span class="v">'+totalEssays+' 篇</span></div>');
   if(totalMovieMin>0)rows.push('<div class="ss-row"><span>🎬 电影整理</span><span class="v">'+totalMovieMin+' 分钟</span></div>');
   if(allMovies.length>0)rows.push('<div class="ss-row" style="flex-direction:column;align-items:flex-start"><span>🎬 整理电影数</span><span style="font-size:12px;color:#856404;margin-top:2px">共 '+allMovies.length+' 部</span></div>');
-  if(totalNovelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说年度字数</span><span class="v">'+totalNovelWords.toLocaleString()+' 字</span></div>');
-  rows.push('<div class="ss-row"><span>✍️ 小说总字数</span><span class="v">'+totalNovelAll.toLocaleString()+' 字</span></div>');
-  if(totalMediaTotal>0)rows.push('<div class="ss-row"><span>📱 自媒体完成</span><span class="v'+(totalMediaDone===totalMediaTotal?' green':'')+'">'+totalMediaDone+'/'+totalMediaTotal+'</span></div>');
+  if(totalNovelTotal>0)rows.push('<div class="ss-row"><span>✍️ 小说任务完成</span><span class="v'+(totalNovelDone===totalNovelTotal?' green':'')+'">'+totalNovelDone+'/'+totalNovelTotal+'</span></div>');
+  if(totalNovelChapters>0)rows.push('<div class="ss-row"><span>📖 完成章节</span><span class="v">'+totalNovelChapters+' 章</span></div>');
+  if(totalNovelRank>0)rows.push('<div class="ss-row"><span>🔥 刷榜打卡</span><span class="v">'+totalNovelRank+' 次</span></div>');
+  if(totalNovelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说字数（旧记录）</span><span class="v">'+totalNovelWords.toLocaleString()+' 字</span></div>');
   if(totalGuideVideos>0||totalGuideQuestions>0)rows.push('<div class="ss-row"><span>🎫 英导学习</span><span class="v">'+totalGuideVideos+' 视频 / '+totalGuideQuestions+' 题</span></div>');
   if(activeDays===0)rows.push('<div style="color:var(--text2);text-align:center;padding:10px">本年暂无数据</div>');
   return '<div class="sum-stat">'+rows.join('')+'</div>';
