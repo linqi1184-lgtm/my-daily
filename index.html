@@ -201,6 +201,7 @@ function ensureExerciseDaily(dk){
 function ensureEnglish(dk){
   if(!D.english[dk])D.english[dk]={};
   if(!D.english[dk].nc2)D.english[dk].nc2={done:false,count:0};
+  if(!D.english[dk].vocab)D.english[dk].vocab={done:false,count:0};
   if(!D.english[dk].movie)D.english[dk].movie={done:false,movies:[]};
   if(!D.english[dk].movie.movies)D.english[dk].movie.movies=[];
   return D.english[dk];
@@ -295,9 +296,13 @@ function initExercise(){
 function renderEnglish(){
   var dk=dateKey();var en=ensureEnglish(dk);var done=0;
   if(en.nc2.done)done++;
+  if(en.vocab.done)done++;
   if(en.movie.done||(en.movie.movies&&en.movie.movies.length>0))done++;
-  var html='<div class="card"><div class="card-title">今日英语学习 <span class="badge">'+done+'/2</span></div>';
+  var vocabCount=en.vocab.count||0;
+  var vocabPct=Math.min(100,Math.round(vocabCount/500*100));
+  var html='<div class="card"><div class="card-title">今日英语学习 <span class="badge">'+done+'/3</span></div>';
   html+='<div class="en-item" data-id="nc2"><div class="checkbox'+(en.nc2.done?' checked':'')+'" data-action="toggle" style="margin-top:2px"></div><div class="en-info"><div class="en-name'+(en.nc2.done?' done':'')+'">新概念第二册</div><div class="en-count-row"><span style="font-size:12px;color:var(--text2)">今日背诵篇数：</span><input type="number" min="0" value="'+(en.nc2.count||0)+'" data-action="count" /><span style="font-size:12px;color:var(--text2)">篇</span></div></div></div>';
+  html+='<div class="en-item" data-id="vocab"><div class="checkbox'+(en.vocab.done?' checked':'')+'" data-action="toggle" style="margin-top:2px"></div><div class="en-info"><div class="en-name'+(en.vocab.done?' done':'')+'">背单词（每日500个）</div><div class="en-count-row"><span style="font-size:12px;color:var(--text2)">今日背单词：</span><input type="number" min="0" value="'+vocabCount+'" data-action="vcount" /><span style="font-size:12px;color:var(--text2)">个</span><span style="font-size:12px;color:var(--primary);font-weight:600">'+vocabCount+'/500</span></div><div class="progress-bar" style="margin-top:4px"><div class="progress-fill" style="width:'+vocabPct+'%"></div></div></div></div>';
   var movieChecked=en.movie.done;
   html+='<div class="en-item" data-id="movie"><div class="checkbox'+(movieChecked?' checked':'')+'" data-action="toggle" style="margin-top:2px"></div><div class="en-info"><div class="en-name'+(movieChecked?' done':'')+'">英文电影整理</div>';
   if(en.movie.movies&&en.movie.movies.length>0){
@@ -311,11 +316,13 @@ function renderEnglish(){
   html+='</div></div></div>';
   // Progress stats
   var totalEssays=(en.nc2.count||0);
+  var vocabTotal=vocabCount;
   var movieTotalMin=0;var movieNames=[];
   if(en.movie.movies){en.movie.movies.forEach(function(mv){movieTotalMin+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})};
   html+='<div class="card"><div class="card-title">进度统计</div>';
   html+='<div class="progress-info-row"><span>今日背诵总篇数</span><span class="val">'+totalEssays+'</span></div>';
   html+='<div class="progress-info-row"><span>新概念二册</span><span>'+(en.nc2.count||0)+' 篇</span></div>';
+  html+='<div class="progress-info-row"><span>📕 背单词</span><span class="val'+(vocabCount>=500?' green':'')+'">'+vocabCount+' / 500 个</span></div>';
   html+='<div class="section-gap"></div>';
   html+='<div class="progress-info-row"><span>英文电影整理</span><span>'+movieTotalMin+' 分钟</span></div>';
   if(movieNames.length>0)html+='<div class="progress-info-row"><span>今日整理的电影</span><span style="color:#856404;font-weight:600">🎬 '+esc(movieNames.join('、'))+'</span></div>';
@@ -328,6 +335,11 @@ function initEnglish(){
   if(ncEl){
     ncEl.querySelector('[data-action=toggle]').addEventListener('click',function(){en.nc2.done=!en.nc2.done;save();renderPage();toast(en.nc2.done?'打卡成功':'取消打卡')});
     var ci=ncEl.querySelector('[data-action=count]');if(ci){ci.addEventListener('input',function(){en.nc2.count=parseInt(ci.value)||0;debounce(function(){save()},'en_c_nc2',500)});ci.addEventListener('click',function(e){e.stopPropagation()})}
+  }
+  var vbEl=document.querySelector('.en-item[data-id="vocab"]');
+  if(vbEl){
+    vbEl.querySelector('[data-action=toggle]').addEventListener('click',function(){en.vocab.done=!en.vocab.done;save();renderPage();toast(en.vocab.done?'打卡成功':'取消打卡')});
+    var vci=vbEl.querySelector('[data-action=vcount]');if(vci){vci.addEventListener('input',function(){en.vocab.count=parseInt(vci.value)||0;debounce(function(){save()},'en_c_vocab',500)});vci.addEventListener('click',function(e){e.stopPropagation()})}
   }
   var movieEl=document.querySelector('.en-item[data-id="movie"]');
   if(!movieEl)return;
@@ -455,10 +467,13 @@ var calSelectedDate=dateKey(); // selected date in calendar
 function monthKey(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
 function fmtDateShort(dk){var p=dk.split('-');return parseInt(p[1])+'/'+parseInt(p[2])}
 function dayHasData(dk){
-  if(D.exercise&&D.exercise.daily&&D.exercise.daily[dk]&&D.exercise.daily[dk].length>0)return true;
+  if(D.exercise&&D.exercise.daily&&D.exercise.daily[dk]&&D.exercise.daily[dk].some(function(i){return i.done}))return true;
   if(D.exercise&&D.exercise.weights&&D.exercise.weights[dk])return true;
-  if(D.english&&D.english[dk])return true;
-  if(D.novel&&D.novel.daily&&D.novel.daily[dk]&&D.novel.daily[dk].length>0)return true;
+  if(D.english&&D.english[dk]){
+    var en=D.english[dk];
+    if((en.nc2&&(en.nc2.done||(en.nc2.count||0)>0))||(en.vocab&&(en.vocab.count||0)>0)||(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0))))return true;
+  }
+  if(D.novel&&D.novel.daily&&D.novel.daily[dk]&&D.novel.daily[dk].some(function(i){return i.done}))return true;
   if(D.novel&&D.novel.dailyWords&&(D.novel.dailyWords[dk]||0)>0)return true;
   if(D.guide&&D.guide.daily&&D.guide.daily[dk]&&((D.guide.daily[dk].videos||0)>0||(D.guide.daily[dk].questions||0)>0))return true;
   return false;
@@ -466,40 +481,42 @@ function dayHasData(dk){
 function buildDayInfo(dk){
   var rows=[];
   var hasAny=false;
-  // Exercise
+  // Exercise (only done items)
   if(D.exercise&&D.exercise.daily&&D.exercise.daily[dk]){
     var exItems=D.exercise.daily[dk];
-    var exDone=exItems.filter(function(i){return i.done}).length;
-    if(exItems.length>0){
+    var exDoneItems=exItems.filter(function(i){return i.done});
+    if(exDoneItems.length>0){
       hasAny=true;
-      rows.push('<div class="ci-row"><span>💪 锻炼</span><span class="v'+(exDone===exItems.length?' ci-done':'')+'">'+exDone+'/'+exItems.length+'</span></div>');
-      exItems.forEach(function(it){rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:var(--text2)"><span>'+(it.done?'✅':'⬜')+' '+esc(it.label)+'</span></div>')});
+      rows.push('<div class="ci-row"><span>💪 锻炼完成</span><span class="v ci-done">'+exDoneItems.length+' 项</span></div>');
+      exDoneItems.forEach(function(it){rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:var(--text2)"><span>✅ '+esc(it.label)+'</span></div>')});
     }
   }
   if(D.exercise&&D.exercise.weights&&D.exercise.weights[dk]){
     hasAny=true;
     rows.push('<div class="ci-row"><span>⚖️ 今日体重</span><span class="v">'+D.exercise.weights[dk]+' 斤</span></div>');
   }
-  // English
+  // English (only done activities)
   if(D.english&&D.english[dk]){
-    var en=D.english[dk];var enDone=0;var essays=0;
-    if(en.nc2){if(en.nc2.done)enDone++;essays+=(en.nc2.count||0)}
-    if(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0)))enDone++;
+    var en=D.english[dk];var essays=0;
+    if(en.nc2)essays+=(en.nc2.count||0);
+    var vocabCount=(en.vocab&&en.vocab.count)||0;
     var movieMin=0;var movieNames=[];
     if(en.movie&&en.movie.movies){en.movie.movies.forEach(function(mv){movieMin+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})}
-    hasAny=true;
-    rows.push('<div class="ci-row"><span>📖 英语打卡</span><span class="v">'+enDone+'/2</span></div>');
-    if(essays>0)rows.push('<div class="ci-row"><span>📖 背诵篇数</span><span class="v">'+essays+' 篇</span></div>');
-    if(movieMin>0)rows.push('<div class="ci-row"><span>🎬 电影整理</span><span class="v">'+movieMin+' 分钟</span></div>');
+    if(en.nc2&&en.nc2.done){hasAny=true;rows.push('<div class="ci-row"><span>📖 新概念二册</span><span class="v ci-done">'+(essays>0?essays+' 篇':'完成')+'</span></div>')}
+    else if(essays>0){hasAny=true;rows.push('<div class="ci-row"><span>📖 新概念二册</span><span class="v">'+essays+' 篇</span></div>')}
+    if(vocabCount>0){hasAny=true;rows.push('<div class="ci-row"><span>📕 背单词</span><span class="v'+(vocabCount>=500?' ci-done':'')+'">'+vocabCount+' 个</span></div>')}
+    if(en.movie&&en.movie.done){hasAny=true;rows.push('<div class="ci-row"><span>🎬 电影整理</span><span class="v ci-done">'+(movieMin>0?movieMin+' 分钟':'完成')+'</span></div>')}
+    else if(movieMin>0){hasAny=true;rows.push('<div class="ci-row"><span>🎬 电影整理</span><span class="v">'+movieMin+' 分钟</span></div>')}
     if(movieNames.length>0)rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:#856404"><span>'+esc(movieNames.join('、'))+'</span></div>');
   }
-  // Novel
+  // Novel (only done tasks)
   if(D.novel&&D.novel.daily&&D.novel.daily[dk]){
-    var nItems=D.novel.daily[dk];var nDone=nItems.filter(function(i){return i.done}).length;
-    if(nItems.length>0){
+    var nItems=D.novel.daily[dk];
+    var nDoneItems=nItems.filter(function(i){return i.done});
+    if(nDoneItems.length>0){
       hasAny=true;
-      rows.push('<div class="ci-row"><span>✍️ 小说任务</span><span class="v'+(nDone===nItems.length?' ci-done':'')+'">'+nDone+'/'+nItems.length+'</span></div>');
-      nItems.forEach(function(it){rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:var(--text2)"><span>'+(it.done?'✅':'⬜')+' '+esc(it.label)+'</span></div>')});
+      rows.push('<div class="ci-row"><span>✍️ 小说完成</span><span class="v ci-done">'+nDoneItems.length+' 项</span></div>');
+      nDoneItems.forEach(function(it){rows.push('<div class="ci-row" style="padding-left:12px;font-size:12px;color:var(--text2)"><span>✅ '+esc(it.label)+'</span></div>')});
     }
   }
   // Old novel word records (historical)
@@ -519,7 +536,7 @@ function buildDayInfo(dk){
 function buildMonthStats(ym){
   var y=parseInt(ym.split('-')[0]);var m=parseInt(ym.split('-')[1]);
   var days=new Date(y,m,0).getDate();
-  var activeDays=0,exDone=0,exTotal=0,enDone=0,essays=0,movieMin=0,movieNames=[],novelDone=0,novelTotal=0,novelChapters=0,novelRank=0;
+  var activeDays=0,exDone=0,exTotal=0,enDone=0,essays=0,vocabTotal=0,movieMin=0,movieNames=[],novelDone=0,novelTotal=0,novelChapters=0,novelRank=0;
   var guideVideos=0,guideQuestions=0;
   var weightFirst=null,weightLast=null,weightCount=0;
   for(var d=1;d<=days;d++){
@@ -529,10 +546,13 @@ function buildMonthStats(ym){
     if(D.exercise&&D.exercise.weights&&D.exercise.weights[dk]){var wv=D.exercise.weights[dk];if(weightFirst===null)weightFirst=wv;weightLast=wv;weightCount++;hasData=true}
     if(D.english&&D.english[dk]){
       var en=D.english[dk];
-      if(en.nc2){if(en.nc2.done)enDone++;essays+=(en.nc2.count||0)}
-      if(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0)))enDone++;
+      var dEn=0,dEss=0,dVoc=0;
+      if(en.nc2){if(en.nc2.done)dEn++;dEss+=(en.nc2.count||0);essays+=dEss}
+      if(en.vocab){var vc=en.vocab.count||0;vocabTotal+=vc;dVoc+=vc}
+      if(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0)))dEn++;
       if(en.movie&&en.movie.movies){en.movie.movies.forEach(function(mv){movieMin+=(mv.minutes||0);if(mv.name)movieNames.push(mv.name)})}
-      hasData=true;
+      enDone+=dEn;
+      if(dEn>0||dEss>0||dVoc>0)hasData=true;
     }
     if(D.novel&&D.novel.daily&&D.novel.daily[dk]){D.novel.daily[dk].forEach(function(it){novelTotal++;if(it.done){novelDone++;if(it.label==='每日一章')novelChapters++;if(it.label==='刷榜一小时')novelRank++;hasData=true}})}
     if(D.guide&&D.guide.daily&&D.guide.daily[dk]){var gv2=D.guide.daily[dk].videos||0;var gq2=D.guide.daily[dk].questions||0;if(gv2>0||gq2>0){guideVideos+=gv2;guideQuestions+=gq2;hasData=true}}
@@ -544,13 +564,14 @@ function buildMonthStats(ym){
   var rows=[];
   rows.push('<div class="ss-title">'+y+'年'+m+'月 数据汇总</div>');
   rows.push('<div class="ss-row"><span>活跃天数</span><span class="v">'+activeDays+'/'+days+' 天</span></div>');
-  if(exTotal>0)rows.push('<div class="ss-row"><span>💪 锻炼完成</span><span class="v'+(exTotal>0&&exDone===exTotal?' green':'')+'">'+exDone+'/'+exTotal+'</span></div>');
+  if(exDone>0)rows.push('<div class="ss-row"><span>💪 锻炼完成</span><span class="v">'+exDone+' 项</span></div>');
   if(weightCount>0)rows.push('<div class="ss-row"><span>⚖️ 体重记录</span><span class="v">'+weightFirst+' → '+weightLast+' 斤（'+weightCount+' 次）</span></div>');
-  rows.push('<div class="ss-row"><span>📖 英语打卡</span><span class="v">'+enDone+' 次</span></div>');
+  if(enDone>0)rows.push('<div class="ss-row"><span>📖 英语打卡</span><span class="v">'+enDone+' 次</span></div>');
   if(essays>0)rows.push('<div class="ss-row"><span>📖 背诵总篇数</span><span class="v">'+essays+' 篇</span></div>');
+  if(vocabTotal>0)rows.push('<div class="ss-row"><span>📕 背单词总数</span><span class="v">'+vocabTotal.toLocaleString()+' 个</span></div>');
   if(movieMin>0)rows.push('<div class="ss-row"><span>🎬 电影整理</span><span class="v">'+movieMin+' 分钟</span></div>');
   if(movieNames.length>0)rows.push('<div class="ss-row" style="flex-direction:column;align-items:flex-start"><span>🎬 看过的电影</span><span style="font-size:12px;color:#856404;margin-top:2px">'+esc(movieNames.join('、'))+'</span></div>');
-  if(novelTotal>0)rows.push('<div class="ss-row"><span>✍️ 小说任务完成</span><span class="v'+(novelTotal>0&&novelDone===novelTotal?' green':'')+'">'+novelDone+'/'+novelTotal+'</span></div>');
+  if(novelDone>0)rows.push('<div class="ss-row"><span>✍️ 小说任务完成</span><span class="v">'+novelDone+' 项</span></div>');
   if(novelChapters>0)rows.push('<div class="ss-row"><span>📖 完成章节</span><span class="v">'+novelChapters+' 章</span></div>');
   if(novelRank>0)rows.push('<div class="ss-row"><span>🔥 刷榜打卡</span><span class="v">'+novelRank+' 次</span></div>');
   if(novelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说字数（旧记录）</span><span class="v">'+novelWords.toLocaleString()+' 字</span></div>');
@@ -560,7 +581,7 @@ function buildMonthStats(ym){
 }
 function buildYearStats(y){
   var activeMonths=0,activeDays=0;
-  var totalExDone=0,totalExTotal=0,totalEnDone=0,totalEssays=0,totalMovieMin=0,totalNovelDone=0,totalNovelTotal=0,totalNovelChapters=0,totalNovelRank=0,totalNovelWords=0;
+  var totalExDone=0,totalExTotal=0,totalEnDone=0,totalEssays=0,totalVocab=0,totalMovieMin=0,totalNovelDone=0,totalNovelTotal=0,totalNovelChapters=0,totalNovelRank=0,totalNovelWords=0;
   var totalGuideVideos=0,totalGuideQuestions=0;
   var weightFirst=null,weightLast=null,weightCount=0;
   var allMovies=[];
@@ -575,6 +596,7 @@ function buildYearStats(y){
       if(D.english&&D.english[dk]){
         var en=D.english[dk];
         if(en.nc2){if(en.nc2.done)totalEnDone++;totalEssays+=(en.nc2.count||0)}
+        if(en.vocab)totalVocab+=(en.vocab.count||0);
         if(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0)))totalEnDone++;
         if(en.movie&&en.movie.movies){en.movie.movies.forEach(function(mv){totalMovieMin+=(mv.minutes||0);if(mv.name)allMovies.push(mv.name)})}
         hasData=true;
@@ -590,13 +612,14 @@ function buildYearStats(y){
   rows.push('<div class="ss-title">'+y+'年 年度数据汇总</div>');
   rows.push('<div class="ss-row"><span>活跃月份</span><span class="v">'+activeMonths+'/12</span></div>');
   rows.push('<div class="ss-row"><span>活跃天数</span><span class="v">'+activeDays+' 天</span></div>');
-  if(totalExTotal>0)rows.push('<div class="ss-row"><span>💪 锻炼完成</span><span class="v'+(totalExDone===totalExTotal?' green':'')+'">'+totalExDone+'/'+totalExTotal+'</span></div>');
+  if(totalExDone>0)rows.push('<div class="ss-row"><span>💪 锻炼完成</span><span class="v">'+totalExDone+' 项</span></div>');
   if(weightCount>0)rows.push('<div class="ss-row"><span>⚖️ 体重变化</span><span class="v">'+weightFirst+' → '+weightLast+' 斤（'+weightCount+' 次记录）</span></div>');
-  rows.push('<div class="ss-row"><span>📖 英语打卡</span><span class="v">'+totalEnDone+' 次</span></div>');
+  if(totalEnDone>0)rows.push('<div class="ss-row"><span>📖 英语打卡</span><span class="v">'+totalEnDone+' 次</span></div>');
   if(totalEssays>0)rows.push('<div class="ss-row"><span>📖 背诵总篇数</span><span class="v">'+totalEssays+' 篇</span></div>');
+  if(totalVocab>0)rows.push('<div class="ss-row"><span>📕 背单词总数</span><span class="v">'+totalVocab.toLocaleString()+' 个</span></div>');
   if(totalMovieMin>0)rows.push('<div class="ss-row"><span>🎬 电影整理</span><span class="v">'+totalMovieMin+' 分钟</span></div>');
   if(allMovies.length>0)rows.push('<div class="ss-row" style="flex-direction:column;align-items:flex-start"><span>🎬 整理电影数</span><span style="font-size:12px;color:#856404;margin-top:2px">共 '+allMovies.length+' 部</span></div>');
-  if(totalNovelTotal>0)rows.push('<div class="ss-row"><span>✍️ 小说任务完成</span><span class="v'+(totalNovelDone===totalNovelTotal?' green':'')+'">'+totalNovelDone+'/'+totalNovelTotal+'</span></div>');
+  if(totalNovelDone>0)rows.push('<div class="ss-row"><span>✍️ 小说任务完成</span><span class="v">'+totalNovelDone+' 项</span></div>');
   if(totalNovelChapters>0)rows.push('<div class="ss-row"><span>📖 完成章节</span><span class="v">'+totalNovelChapters+' 章</span></div>');
   if(totalNovelRank>0)rows.push('<div class="ss-row"><span>🔥 刷榜打卡</span><span class="v">'+totalNovelRank+' 次</span></div>');
   if(totalNovelWords>0)rows.push('<div class="ss-row"><span>✍️ 小说字数（旧记录）</span><span class="v">'+totalNovelWords.toLocaleString()+' 字</span></div>');
