@@ -78,6 +78,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 /* TTS bar */
 .tts-bar{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
 .tts-current{margin-top:8px;padding:10px 12px;background:var(--primary-bg);border-radius:8px;font-size:15px;line-height:1.7;display:none;color:var(--text);font-weight:500}
+.note-tts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px 2px;border-top:1px dashed var(--border)}
+.nt-current{margin:8px 12px 12px;padding:10px 12px;background:var(--primary-bg);border-radius:8px;font-size:15px;line-height:1.7;display:none;color:var(--text);font-weight:500}
 .stat-box{flex:1;background:var(--card);border-radius:8px;padding:10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .stat-box .num{font-size:22px;font-weight:700}
 .stat-box .lbl{font-size:11px;color:var(--text2);margin-top:2px}
@@ -350,6 +352,7 @@ function initEnglish(){
   movieEl.querySelector('[data-action=addmovie]').addEventListener('click',function(){if(!en.movie.movies)en.movie.movies=[];en.movie.movies.push({id:uid(),name:'',minutes:0});save();renderPage()});
 }
 // ===================== PAGE: GUIDE (英文导游考试) =====================
+var guideRate=0.9; // shared TTS rate across note entries
 function renderGuide(){
   var dk=dateKey();var wk=weekKey();
   var today=ensureGuideDaily(dk);
@@ -371,9 +374,7 @@ function renderGuide(){
   // Notes input (导游词笔记)
   html+='<div class="card"><div class="card-title">🎤 今日导游词笔记 <span class="badge" style="background:#f0f7eb;color:var(--success)" id="guide-notes-count">'+((today.notes||'').length)+' 字</span></div>';
   html+='<textarea id="guide-notes" placeholder="记录今天背的导游词内容，比如背了哪些景点、哪些段落...（自动保存）" style="width:100%;min-height:120px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;line-height:1.6;resize:vertical">'+esc(today.notes||'')+'</textarea>';
-  html+='<div class="tts-bar"><button class="btn btn-primary btn-sm" id="tts-play">▶️ 播放</button><button class="btn btn-sm" id="tts-stop" style="background:var(--border);color:var(--text)">⏹ 停止</button><span style="font-size:12px;color:var(--text2)">语速</span><input type="range" id="tts-rate" min="0.5" max="1.5" step="0.1" value="0.9" style="flex:1;min-width:90px"><span style="font-size:12px;color:var(--text2);min-width:34px;text-align:right" id="tts-rate-val">0.9x</span></div>';
-  html+='<div id="tts-current" class="tts-current"></div>';
-  html+='<div style="font-size:12px;color:var(--text2);margin-top:6px">✍️ 边背边记，自动保存 ｜ 🔊 把英文导游词粘贴进来，点「播放」逐句朗读，边听边学</div></div>';
+  html+='<div style="font-size:12px;color:var(--text2);margin-top:6px">✍️ 边背边记，自动保存 ｜ 🔊 保存后的导游词可在下方「笔记历史」中逐条播放朗读</div></div>';
   // Stats
   html+='<div class="novel-stats"><div class="stat-box"><div class="num" style="color:var(--primary)">'+(today.videos||0)+'</div><div class="lbl">今日视频</div></div><div class="stat-box"><div class="num" style="color:var(--success)">'+(today.questions||0)+'</div><div class="lbl">今日刷题</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+totalVideos+'</div><div class="lbl">总视频</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+totalQuestions+'</div><div class="lbl">总刷题</div></div></div>';
   // Weekly stats
@@ -397,7 +398,9 @@ function renderGuide(){
       var label=dt.getFullYear()+'年'+(dt.getMonth()+1)+'月'+dt.getDate()+'日 星期'+WEEKDAYS[dt.getDay()];
       if(k===dk)label='今天 · '+label;
       html+='<details class="note-history"'+(i===0?' open':'')+'><summary>'+esc(label)+'<span style="font-size:12px;color:var(--text2);margin-left:6px">'+(D.guide.daily[k].notes||'').trim().length+' 字</span></summary>';
-      html+='<div class="note-body">'+esc((D.guide.daily[k].notes||'').trim())+'</div></details>';
+      html+='<div class="note-body">'+esc((D.guide.daily[k].notes||'').trim())+'</div>';
+      html+='<div class="note-tts" data-dk="'+k+'"><button class="btn btn-primary btn-sm nt-play">▶️ 播放</button><button class="btn btn-sm nt-stop" style="background:var(--border);color:var(--text)">⏹ 停止</button><span style="font-size:12px;color:var(--text2)">语速</span><input type="range" class="nt-rate" min="0.5" max="1.5" step="0.1" value="'+guideRate+'" style="flex:1;min-width:90px"><span style="font-size:12px;color:var(--text2);min-width:34px;text-align:right" class="nt-rate-val">'+guideRate+'x</span></div>';
+      html+='<div class="nt-current"></div></details>';
     });
   }
   html+='</div>';
@@ -422,18 +425,15 @@ function initGuide(){
   notesArea.addEventListener('input',function(){
     today.notes=notesArea.value;
     if(notesCount)notesCount.textContent=notesArea.value.length+' 字';
-    debounce(function(){save()},'guide_notes',600);
+    debounce(function(){
+      save();
+      if(!document.querySelector('.note-tts[data-dk="'+dk+'"]'))renderPage();
+    },'guide_notes',600);
   });
-  // ---- TTS: read notes aloud sentence by sentence ----
-  var ttsPlaying=false,ttsPaused=false,ttsRestart=false,ttsSentences=[],ttsIdx=0;
-  var playBtn=document.getElementById('tts-play');
-  var stopBtn=document.getElementById('tts-stop');
-  var rateInput=document.getElementById('tts-rate');
-  var rateVal=document.getElementById('tts-rate-val');
-  var curEl=document.getElementById('tts-current');
+  // ---- TTS: play any saved note in the history list ----
+  var ttsActive=null,ttsRestart=false;
   if(!('speechSynthesis' in window)){
-    if(playBtn){playBtn.disabled=true;playBtn.style.opacity=.5}
-    if(curEl){curEl.style.display='block';curEl.textContent='当前浏览器不支持语音朗读'}
+    document.querySelectorAll('.note-tts').forEach(function(el){el.innerHTML='<span style="font-size:12px;color:var(--text2)">当前浏览器不支持语音朗读</span>'});
   }else{
     speechSynthesis.getVoices(); // warm up voice list (async on some browsers)
     if(speechSynthesis.onvoiceschanged===null)speechSynthesis.onvoiceschanged=function(){};
@@ -454,59 +454,75 @@ function initGuide(){
     for(i=0;i<vs.length;i++){if(/^en[-_]/i.test(vs[i].lang))return vs[i]}
     return null;
   }
-  function showCurrent(s){
-    if(!curEl)return;
-    if(s){curEl.textContent=s;curEl.style.display='block'}
-    else{curEl.textContent='';curEl.style.display='none'}
-  }
-  function speakNext(){
-    if(ttsIdx>=ttsSentences.length){stopTts(true);return}
-    var s=ttsSentences[ttsIdx];
-    showCurrent(s);
-    var u=new SpeechSynthesisUtterance(s);
-    u.lang='en-US';
-    var v=pickVoice();if(v)u.voice=v;
-    u.rate=parseFloat(rateInput.value)||0.9;
-    u.onend=function(){if(ttsRestart)return;if(ttsPlaying){ttsIdx++;speakNext()}};
-    u.onerror=function(){if(ttsRestart)return;if(ttsPlaying){ttsIdx++;setTimeout(speakNext,80)}};
-    speechSynthesis.speak(u);
-  }
-  function startTts(){
-    var text=notesArea.value.trim();
-    if(!text){toast('请先在上方输入或粘贴导游词');return}
-    ttsSentences=splitSentences(text);
-    if(ttsSentences.length===0){toast('没有可朗读的内容');return}
-    speechSynthesis.cancel();
-    ttsIdx=0;ttsPlaying=true;ttsPaused=false;
-    playBtn.textContent='⏸ 暂停';
-    speakNext();
-  }
-  function stopTts(finished){
-    ttsPlaying=false;ttsPaused=false;
-    speechSynthesis.cancel();
-    playBtn.textContent='▶️ 播放';
-    if(finished){showCurrent('✅ 朗读完毕');setTimeout(function(){if(!ttsPlaying)showCurrent('')},2000)}
-    else showCurrent('');
-  }
-  if(playBtn){
-    playBtn.addEventListener('click',function(){
-      if(!ttsPlaying){startTts()}
-      else if(!ttsPaused){ttsPaused=true;speechSynthesis.pause();playBtn.textContent='▶️ 继续'}
-      else{ttsPaused=false;speechSynthesis.resume();playBtn.textContent='⏸ 暂停'}
-    });
-  }
-  if(stopBtn)stopBtn.addEventListener('click',function(){stopTts(false)});
-  if(rateInput){
-    rateInput.addEventListener('input',function(){
-      var r=Math.round(parseFloat(rateInput.value)*10)/10;
-      if(rateVal)rateVal.textContent=r+'x';
-      if(ttsPlaying&&!ttsPaused){
-        ttsRestart=true;
-        speechSynthesis.cancel();
-        setTimeout(function(){ttsRestart=false;speakNext()},150);
+  function attachNoteTts(){
+    if(!('speechSynthesis' in window))return;
+    document.querySelectorAll('.note-tts').forEach(function(bar){
+      var playBtn=bar.querySelector('.nt-play');
+      var stopBtn=bar.querySelector('.nt-stop');
+      var rateInput=bar.querySelector('.nt-rate');
+      var rateVal=bar.querySelector('.nt-rate-val');
+      var curEl=bar.parentNode.querySelector('.nt-current');
+      var st={sentences:[],idx:0,playing:false,paused:false,rate:parseFloat(rateInput.value)||0.9,stop:function(){}};
+      function speakNext(){
+        if(st.idx>=st.sentences.length){stopAll(true);return}
+        var s=st.sentences[st.idx];
+        if(curEl){curEl.textContent=s;curEl.style.display='block'}
+        var u=new SpeechSynthesisUtterance(s);
+        u.lang='en-US';
+        var v=pickVoice();if(v)u.voice=v;
+        u.rate=st.rate;
+        u.onend=function(){if(ttsRestart)return;if(st.playing){st.idx++;speakNext()}};
+        u.onerror=function(){if(ttsRestart)return;if(st.playing){st.idx++;setTimeout(speakNext,80)}};
+        speechSynthesis.speak(u);
       }
+      function stopAll(finished){
+        if(ttsActive===st)ttsActive=null;
+        st.playing=false;st.paused=false;
+        speechSynthesis.cancel();
+        playBtn.textContent='▶️ 播放';
+        if(curEl){
+          if(finished){
+            curEl.textContent='✅ 朗读完毕';curEl.style.display='block';
+            setTimeout(function(){if(!st.playing&&curEl.isConnected){curEl.style.display='none';curEl.textContent=''}},2000);
+          }else{curEl.style.display='none';curEl.textContent=''}
+        }
+      }
+      st.stop=stopAll;
+      playBtn.addEventListener('click',function(){
+        if(st.playing){
+          if(!st.paused){st.paused=true;speechSynthesis.pause();playBtn.textContent='▶️ 继续'}
+          else{st.paused=false;speechSynthesis.resume();playBtn.textContent='⏸ 暂停'}
+          return;
+        }
+        if(ttsActive)ttsActive.stop(false);
+        var rec=D.guide.daily[bar.dataset.dk]||{};
+        var txt=(rec.notes||'').trim();
+        if(bar.dataset.dk===dk&&notesArea&&notesArea.value.trim())txt=notesArea.value.trim();
+        st.sentences=splitSentences(txt);
+        if(st.sentences.length===0){toast('这条笔记没有可朗读的内容');return}
+        st.idx=0;st.playing=true;st.paused=false;
+        st.rate=parseFloat(rateInput.value)||0.9;
+        ttsActive=st;
+        playBtn.textContent='⏸ 暂停';
+        speakNext();
+      });
+      stopBtn.addEventListener('click',function(){stopAll(false)});
+      rateInput.addEventListener('input',function(){
+        var r=Math.round(parseFloat(rateInput.value)*10)/10;
+        guideRate=r;
+        if(rateVal)rateVal.textContent=r+'x';
+        document.querySelectorAll('.nt-rate').forEach(function(o){if(o!==rateInput)o.value=r});
+        document.querySelectorAll('.nt-rate-val').forEach(function(o){if(o!==rateVal)o.textContent=r+'x'});
+        if(st.playing&&!st.paused){
+          st.rate=r;
+          ttsRestart=true;
+          speechSynthesis.cancel();
+          setTimeout(function(){ttsRestart=false;speakNext()},150);
+        }
+      });
     });
   }
+  attachNoteTts();
   var wg=document.getElementById('guide-weekly');
   wg.addEventListener('input',function(){D.guide.weeklyGoal[wk]=wg.value;debounce(function(){save();toast('已保存')},'guide_wg')});
 }
