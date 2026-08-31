@@ -74,7 +74,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .note-history summary::-webkit-details-marker{display:none}
 .note-history summary::before{content:'▸';margin-right:8px;color:var(--text2);transition:transform .2s}
 .note-history[open] summary::before{transform:rotate(90deg)}
-.note-body{padding:10px 12px;font-size:14px;white-space:pre-wrap;word-break:break-word;line-height:1.7;color:var(--text)}
+.note-body{padding:10px 12px;font-size:14px;word-break:break-word;line-height:1.7;color:var(--text)}
+/* Interactive sentences & words */
+.snt{position:relative;padding:3px 30px 3px 4px;border-radius:6px;transition:background .2s;cursor:pointer}
+.snt.active{background:var(--primary-bg)}
+.snt-rep{position:absolute;right:2px;top:4px;font-size:12px;opacity:.3;cursor:pointer;padding:3px 5px;border-radius:4px;user-select:none}
+.snt-rep:active{opacity:1}
+.snt-rep.on{opacity:1;background:var(--warn);border-radius:4px}
+.w{border-bottom:1px dashed #a8c8ee;cursor:pointer}
+.w:active{color:var(--primary)}
+/* Word dictionary popup */
+.wdic-mask{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:998;display:none}
+.wdic{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:14px 14px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,.18);z-index:999;padding:14px 16px 24px;transform:translateY(110%);transition:transform .25s;max-width:640px;margin:0 auto;max-height:70vh;overflow-y:auto}
+.wdic.show{transform:translateY(0)}
+.wdic-head{display:flex;align-items:center;gap:10px}
+.wdic-word{font-size:20px;font-weight:700;color:var(--primary)}
+.wdic-btn{border:none;background:var(--primary-bg);color:var(--primary);border-radius:6px;padding:6px 12px;font-size:14px;cursor:pointer;font-family:inherit}
+.wdic-close{margin-left:auto;background:var(--border);color:var(--text)}
+.wdic-phon{color:var(--text2);font-size:14px;margin-top:4px}
+.wdic-zh{background:var(--primary-bg);border-radius:6px;padding:6px 10px;margin-top:8px;font-size:15px;font-weight:600;color:var(--primary)}
+.wdic-defs{margin-top:8px;font-size:14px;line-height:1.7}
+.wdic-def{padding:4px 0;border-bottom:1px dashed var(--border)}
+.wdic-def:last-child{border-bottom:none}
+.wdic-pos{font-style:italic;color:var(--primary);font-weight:600;margin-right:4px}
 /* TTS bar */
 .tts-bar{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
 .tts-current{margin-top:8px;padding:10px 12px;background:var(--primary-bg);border-radius:8px;font-size:15px;line-height:1.7;display:none;color:var(--text);font-weight:500}
@@ -130,6 +152,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   <div class="content" id="content"></div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="wdic-mask" id="wdic-mask"></div>
+<div class="wdic" id="wdic">
+  <div class="wdic-head"><span class="wdic-word" id="wdic-word"></span><button class="wdic-btn" id="wdic-say">🔊 发音</button><button class="wdic-btn wdic-close" id="wdic-close">✕</button></div>
+  <div class="wdic-phon" id="wdic-phon"></div>
+  <div class="wdic-defs" id="wdic-defs"></div>
+</div>
 <script>
 // ===== DATA =====
 var D={};
@@ -353,6 +381,114 @@ function initEnglish(){
 }
 // ===================== PAGE: GUIDE (英文导游考试) =====================
 var guideRate=0.9; // shared TTS rate across note entries
+var uttTok=0; // utterance token: invalidate stale onend callbacks
+var guideDict={};
+try{guideDict=JSON.parse(localStorage.getItem('guide_dict_v1')||'{}')||{}}catch(e){guideDict={}}
+function saveDict(){try{localStorage.setItem('guide_dict_v1',JSON.stringify(guideDict))}catch(e){}}
+function splitSentences(t){
+  var out=[];
+  String(t||'').replace(/\r/g,'').split(/\n+/).forEach(function(p){
+    p=p.trim();if(!p)return;
+    var s=p.match(/[^.!?\u3002\uff01\uff1f]+[.!?\u3002\uff01\uff1f]*/g);
+    if(s)s.forEach(function(x){x=x.trim();if(x)out.push(x)});
+  });
+  return out;
+}
+function pickVoice(){
+  var vs=speechSynthesis.getVoices();
+  var i;
+  for(i=0;i<vs.length;i++){if(/^en[-_]/i.test(vs[i].lang)&&/google|natural|samantha|daniel|aria|jenny|zira|male/i.test(vs[i].name))return vs[i]}
+  for(i=0;i<vs.length;i++){if(/^en[-_]/i.test(vs[i].lang))return vs[i]}
+  return null;
+}
+function speakWord(w,rate){
+  if(!('speechSynthesis' in window))return;
+  uttTok++;
+  speechSynthesis.cancel();
+  var u=new SpeechSynthesisUtterance(w);
+  u.lang='en-US';var v=pickVoice();if(v)u.voice=v;
+  u.rate=rate||0.85;
+  speechSynthesis.speak(u);
+}
+function renderWordsHtml(s){
+  var out='';var re=/([A-Za-z][A-Za-z'\u2019-]*)|([^A-Za-z]+)/g;var m;
+  while((m=re.exec(s))!==null){
+    if(m[1])out+='<span class="w" data-w="'+esc(m[1])+'">'+esc(m[1])+'</span>';
+    else out+=esc(m[2]);
+  }
+  return out;
+}
+function renderSentencesHtml(text){
+  var sents=splitSentences(text);
+  if(!sents.length)return '<span style="color:var(--text2)">（无内容）</span>';
+  var html='';
+  sents.forEach(function(s,i){
+    html+='<div class="snt" data-si="'+i+'"><span class="snt-text">'+renderWordsHtml(s)+'</span><span class="snt-rep" title="重复朗读本句">🔁</span></div>';
+  });
+  return html;
+}
+// ---- word dictionary popup ----
+var wdicCur=null;
+function showDic(w){
+  wdicCur=w;
+  document.getElementById('wdic-word').textContent=w;
+  document.getElementById('wdic-phon').textContent='';
+  document.getElementById('wdic-defs').innerHTML='<div style="color:var(--text2)">🔍 查询中…</div>';
+  document.getElementById('wdic').classList.add('show');
+  document.getElementById('wdic-mask').style.display='block';
+}
+function hideDic(){
+  wdicCur=null;
+  document.getElementById('wdic').classList.remove('show');
+  document.getElementById('wdic-mask').style.display='none';
+}
+function renderDic(w,e){
+  if(wdicCur!==w)return;
+  document.getElementById('wdic-phon').textContent=e.phon||'';
+  var html='';
+  if(e.zh)html+='<div class="wdic-zh">🇨🇳 '+esc(e.zh)+'</div>';
+  if(e.defs&&e.defs.length){
+    e.defs.forEach(function(d){html+='<div class="wdic-def"><span class="wdic-pos">'+esc(d.pos)+'</span>'+esc(d.def)+'</div>'});
+  }else if(!e.zh){
+    html+='<div style="color:var(--text2);padding:6px 0">未查到详细释义，可点右上 🔊 听发音</div>';
+  }
+  document.getElementById('wdic-defs').innerHTML=html;
+}
+function translateWord(w){
+  var e=guideDict[w];if(!e||e.zhTried)return;
+  e.zhTried=true;saveDict();
+  fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(w)+'&langpair=en|zh-CN').then(function(r){return r.json()}).then(function(js){
+    var t=js&&js.responseData&&js.responseData.translatedText;
+    if(t&&t.toLowerCase()!==w.toLowerCase()){e.zh=t;saveDict();renderDic(w,e)}
+  }).catch(function(){});
+}
+function lookupWord(w){
+  var c=guideDict[w];
+  if(c){
+    renderDic(w,c);
+    if(!c.zh&&!c.zhTried)translateWord(w);
+    return;
+  }
+  renderDic(w,{phon:'',defs:[]});
+  fetch('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w)).then(function(r){return r.ok?r.json():Promise.reject()}).then(function(js){
+    var e={phon:'',defs:[]};
+    try{
+      var e0=js[0];
+      if(e0.phonetic)e.phon=e0.phonetic;
+      if(!e.phon&&e0.phonetics){for(var i=0;i<e0.phonetics.length;i++){if(e0.phonetics[i].text){e.phon=e0.phonetics[i].text;break}}}
+      if(e0.meanings)e0.meanings.forEach(function(m){
+        if(m.definitions)m.definitions.slice(0,2).forEach(function(d){if(d.definition)e.defs.push({pos:m.partOfSpeech||'',def:d.definition})});
+      });
+    }catch(err){}
+    e.defs=e.defs.slice(0,4);
+    guideDict[w]=e;saveDict();
+    renderDic(w,e);
+    translateWord(w);
+  }).catch(function(){
+    guideDict[w]={phon:'',defs:[],zh:null,zhTried:false};saveDict();
+    translateWord(w);
+  });
+}
 function renderGuide(){
   var dk=dateKey();var wk=weekKey();
   var today=ensureGuideDaily(dk);
@@ -374,7 +510,7 @@ function renderGuide(){
   // Notes input (导游词笔记)
   html+='<div class="card"><div class="card-title">🎤 今日导游词笔记 <span class="badge" style="background:#f0f7eb;color:var(--success)" id="guide-notes-count">'+((today.notes||'').length)+' 字</span></div>';
   html+='<textarea id="guide-notes" placeholder="记录今天背的导游词内容，比如背了哪些景点、哪些段落...（自动保存）" style="width:100%;min-height:120px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;line-height:1.6;resize:vertical">'+esc(today.notes||'')+'</textarea>';
-  html+='<div style="font-size:12px;color:var(--text2);margin-top:6px">✍️ 边背边记，自动保存 ｜ 🔊 保存后的导游词可在下方「笔记历史」中逐条播放朗读</div></div>';
+  html+='<div style="font-size:12px;color:var(--text2);margin-top:6px">✍️ 边背边记，自动保存 ｜ 🔊 在「笔记历史」中：点句子单独朗读，点 🔁 循环本句，点生词查音标和释义</div></div>';
   // Stats
   html+='<div class="novel-stats"><div class="stat-box"><div class="num" style="color:var(--primary)">'+(today.videos||0)+'</div><div class="lbl">今日视频</div></div><div class="stat-box"><div class="num" style="color:var(--success)">'+(today.questions||0)+'</div><div class="lbl">今日刷题</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+totalVideos+'</div><div class="lbl">总视频</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+totalQuestions+'</div><div class="lbl">总刷题</div></div></div>';
   // Weekly stats
@@ -398,9 +534,9 @@ function renderGuide(){
       var label=dt.getFullYear()+'年'+(dt.getMonth()+1)+'月'+dt.getDate()+'日 星期'+WEEKDAYS[dt.getDay()];
       if(k===dk)label='今天 · '+label;
       html+='<details class="note-history"'+(i===0?' open':'')+'><summary>'+esc(label)+'<span style="font-size:12px;color:var(--text2);margin-left:6px">'+(D.guide.daily[k].notes||'').trim().length+' 字</span></summary>';
-      html+='<div class="note-body">'+esc((D.guide.daily[k].notes||'').trim())+'</div>';
+      html+='<div class="note-body" data-dk="'+k+'">'+renderSentencesHtml((D.guide.daily[k].notes||'').trim())+'</div>';
       html+='<div class="note-tts" data-dk="'+k+'"><button class="btn btn-primary btn-sm nt-play">▶️ 播放</button><button class="btn btn-sm nt-stop" style="background:var(--border);color:var(--text)">⏹ 停止</button><span style="font-size:12px;color:var(--text2)">语速</span><input type="range" class="nt-rate" min="0.5" max="1.5" step="0.1" value="'+guideRate+'" style="flex:1;min-width:90px"><span style="font-size:12px;color:var(--text2);min-width:34px;text-align:right" class="nt-rate-val">'+guideRate+'x</span></div>';
-      html+='<div class="nt-current"></div></details>';
+      html+='</details>';
     });
   }
   html+='</div>';
@@ -408,6 +544,7 @@ function renderGuide(){
 }
 function initGuide(){
   if(window.speechSynthesis)speechSynthesis.cancel();
+  uttTok++;
   var dk=dateKey();var wk=weekKey();
   var today=ensureGuideDaily(dk);
   var vInput=document.getElementById('guide-videos');
@@ -430,99 +567,149 @@ function initGuide(){
       if(!document.querySelector('.note-tts[data-dk="'+dk+'"]'))renderPage();
     },'guide_notes',600);
   });
-  // ---- TTS: play any saved note in the history list ----
-  var ttsActive=null,ttsRestart=false;
-  if(!('speechSynthesis' in window)){
+  // ---- TTS: full-note playback, per-sentence repeat & word lookup ----
+  var ttsActive=null,ttsRestart=false,loopSt=null;
+  var hasTts=('speechSynthesis' in window);
+  if(!hasTts){
     document.querySelectorAll('.note-tts').forEach(function(el){el.innerHTML='<span style="font-size:12px;color:var(--text2)">当前浏览器不支持语音朗读</span>'});
   }else{
     speechSynthesis.getVoices(); // warm up voice list (async on some browsers)
     if(speechSynthesis.onvoiceschanged===null)speechSynthesis.onvoiceschanged=function(){};
   }
-  function splitSentences(t){
-    var out=[];
-    t.replace(/\r/g,'').split(/\n+/).forEach(function(p){
-      p=p.trim();if(!p)return;
-      var s=p.match(/[^.!?\u3002\uff01\uff1f]+[.!?\u3002\uff01\uff1f]*/g);
-      if(s)s.forEach(function(x){x=x.trim();if(x)out.push(x)});
-    });
-    return out;
+  function getNoteText(dk2){
+    var rec=D.guide.daily[dk2]||{};
+    return (rec.notes||'').trim();
   }
-  function pickVoice(){
-    var vs=speechSynthesis.getVoices();
-    var i;
-    for(i=0;i<vs.length;i++){if(/^en[-_]/i.test(vs[i].lang)&&/google|natural|samantha|daniel|aria|jenny|zira|male/i.test(vs[i].name))return vs[i]}
-    for(i=0;i<vs.length;i++){if(/^en[-_]/i.test(vs[i].lang))return vs[i]}
-    return null;
+  function stopLoop(){
+    if(!loopSt)return;
+    var el=loopSt.el;loopSt=null;uttTok++;
+    if(el){el.classList.remove('on');el.classList.remove('active')}
+    speechSynthesis.cancel();
   }
-  function attachNoteTts(){
-    if(!('speechSynthesis' in window))return;
-    document.querySelectorAll('.note-tts').forEach(function(bar){
-      var playBtn=bar.querySelector('.nt-play');
-      var stopBtn=bar.querySelector('.nt-stop');
-      var rateInput=bar.querySelector('.nt-rate');
-      var rateVal=bar.querySelector('.nt-rate-val');
-      var curEl=bar.parentNode.querySelector('.nt-current');
-      var st={sentences:[],idx:0,playing:false,paused:false,rate:parseFloat(rateInput.value)||0.9,stop:function(){}};
-      function speakNext(){
-        if(st.idx>=st.sentences.length){stopAll(true);return}
-        var s=st.sentences[st.idx];
-        if(curEl){curEl.textContent=s;curEl.style.display='block'}
-        var u=new SpeechSynthesisUtterance(s);
-        u.lang='en-US';
-        var v=pickVoice();if(v)u.voice=v;
-        u.rate=st.rate;
-        u.onend=function(){if(ttsRestart)return;if(st.playing){st.idx++;speakNext()}};
-        u.onerror=function(){if(ttsRestart)return;if(st.playing){st.idx++;setTimeout(speakNext,80)}};
-        speechSynthesis.speak(u);
+  // single sentence play (loop=true → repeat until stopped)
+  function playSentence(bar,si,loop){
+    if(!hasTts)return;
+    var body=bar.parentNode.querySelector('.note-body');
+    var sents=splitSentences(getNoteText(bar.dataset.dk));
+    var s=sents[si];
+    if(!s){toast('这句没有可朗读的内容');return}
+    if(ttsActive)ttsActive.stop(false);
+    stopLoop();
+    if(body)body.querySelectorAll('.snt.active').forEach(function(el){el.classList.remove('active')});
+    var el=body?body.querySelector('.snt[data-si="'+si+'"]'):null;
+    if(el)el.classList.add('active');
+    if(loop&&el)el.classList.add('on');
+    var tok=++uttTok;
+    function speakIt(){
+      if(loop&&(!loopSt||loopSt.tok!==tok))return;
+      var u=new SpeechSynthesisUtterance(s);
+      u.lang='en-US';var v=pickVoice();if(v)u.voice=v;
+      u.rate=guideRate;
+      u.onend=function(){
+        if(tok!==uttTok)return;
+        if(loop&&loopSt&&loopSt.tok===tok){setTimeout(function(){if(tok===uttTok&&loopSt&&loopSt.tok===tok)speakIt()},600)}
+        else if(el)el.classList.remove('active');
+      };
+      u.onerror=u.onend;
+      speechSynthesis.speak(u);
+    }
+    if(loop)loopSt={si:si,el:el,bar:bar,tok:tok};
+    speakIt();
+  }
+  function onWordClick(w){
+    if(ttsActive)ttsActive.stop(false);
+    stopLoop();
+    document.querySelectorAll('.note-body .snt.active').forEach(function(el){el.classList.remove('active')});
+    speakWord(w,0.8);
+    showDic(w);
+    lookupWord(w.toLowerCase());
+  }
+  document.querySelectorAll('.note-tts').forEach(function(bar){
+    var playBtn=bar.querySelector('.nt-play');
+    var stopBtn=bar.querySelector('.nt-stop');
+    var rateInput=bar.querySelector('.nt-rate');
+    var rateVal=bar.querySelector('.nt-rate-val');
+    var body=bar.parentNode.querySelector('.note-body');
+    var st={sentences:[],idx:0,playing:false,paused:false,rate:parseFloat(rateInput.value)||0.9,stop:function(){}};
+    function highlight(i){
+      if(!body)return;
+      body.querySelectorAll('.snt.active').forEach(function(el){el.classList.remove('active')});
+      var el=body.querySelector('.snt[data-si="'+i+'"]');
+      if(el)el.classList.add('active');
+    }
+    function speakNext(){
+      if(st.idx>=st.sentences.length){stopAll(true);return}
+      var s=st.sentences[st.idx];
+      highlight(st.idx);
+      var u=new SpeechSynthesisUtterance(s);
+      u.lang='en-US';
+      var v=pickVoice();if(v)u.voice=v;
+      u.rate=st.rate;
+      u.onend=function(){if(ttsRestart)return;if(st.playing){st.idx++;speakNext()}};
+      u.onerror=function(){if(ttsRestart)return;if(st.playing){st.idx++;setTimeout(speakNext,80)}};
+      speechSynthesis.speak(u);
+    }
+    function stopAll(finished){
+      if(ttsActive===st)ttsActive=null;
+      st.playing=false;st.paused=false;
+      speechSynthesis.cancel();
+      playBtn.textContent='▶️ 播放';
+      if(body)body.querySelectorAll('.snt.active').forEach(function(el){el.classList.remove('active')});
+      if(finished)toast('✅ 朗读完毕');
+    }
+    st.stop=stopAll;
+    playBtn.addEventListener('click',function(){
+      if(!hasTts)return;
+      if(st.playing){
+        if(!st.paused){st.paused=true;speechSynthesis.pause();playBtn.textContent='▶️ 继续'}
+        else{st.paused=false;speechSynthesis.resume();playBtn.textContent='⏸ 暂停'}
+        return;
       }
-      function stopAll(finished){
-        if(ttsActive===st)ttsActive=null;
-        st.playing=false;st.paused=false;
+      if(ttsActive)ttsActive.stop(false);
+      stopLoop();
+      var txt=getNoteText(bar.dataset.dk);
+      if(bar.dataset.dk===dk&&notesArea&&notesArea.value.trim())txt=notesArea.value.trim();
+      st.sentences=splitSentences(txt);
+      if(st.sentences.length===0){toast('这条笔记没有可朗读的内容');return}
+      st.idx=0;st.playing=true;st.paused=false;
+      st.rate=parseFloat(rateInput.value)||0.9;
+      ttsActive=st;
+      playBtn.textContent='⏸ 暂停';
+      speakNext();
+    });
+    stopBtn.addEventListener('click',function(){stopAll(false)});
+    rateInput.addEventListener('input',function(){
+      var r=Math.round(parseFloat(rateInput.value)*10)/10;
+      guideRate=r;
+      if(rateVal)rateVal.textContent=r+'x';
+      document.querySelectorAll('.nt-rate').forEach(function(o){if(o!==rateInput)o.value=r});
+      document.querySelectorAll('.nt-rate-val').forEach(function(o){if(o!==rateVal)o.textContent=r+'x'});
+      if(st.playing&&!st.paused){
+        st.rate=r;
+        ttsRestart=true;
         speechSynthesis.cancel();
-        playBtn.textContent='▶️ 播放';
-        if(curEl){
-          if(finished){
-            curEl.textContent='✅ 朗读完毕';curEl.style.display='block';
-            setTimeout(function(){if(!st.playing&&curEl.isConnected){curEl.style.display='none';curEl.textContent=''}},2000);
-          }else{curEl.style.display='none';curEl.textContent=''}
-        }
+        setTimeout(function(){ttsRestart=false;speakNext()},150);
+      }else if(loopSt&&loopSt.bar===bar){
+        var si=loopSt.si;stopLoop();playSentence(bar,si,true);
       }
-      st.stop=stopAll;
-      playBtn.addEventListener('click',function(){
-        if(st.playing){
-          if(!st.paused){st.paused=true;speechSynthesis.pause();playBtn.textContent='▶️ 继续'}
-          else{st.paused=false;speechSynthesis.resume();playBtn.textContent='⏸ 暂停'}
-          return;
-        }
-        if(ttsActive)ttsActive.stop(false);
-        var rec=D.guide.daily[bar.dataset.dk]||{};
-        var txt=(rec.notes||'').trim();
-        if(bar.dataset.dk===dk&&notesArea&&notesArea.value.trim())txt=notesArea.value.trim();
-        st.sentences=splitSentences(txt);
-        if(st.sentences.length===0){toast('这条笔记没有可朗读的内容');return}
-        st.idx=0;st.playing=true;st.paused=false;
-        st.rate=parseFloat(rateInput.value)||0.9;
-        ttsActive=st;
-        playBtn.textContent='⏸ 暂停';
-        speakNext();
-      });
-      stopBtn.addEventListener('click',function(){stopAll(false)});
-      rateInput.addEventListener('input',function(){
-        var r=Math.round(parseFloat(rateInput.value)*10)/10;
-        guideRate=r;
-        if(rateVal)rateVal.textContent=r+'x';
-        document.querySelectorAll('.nt-rate').forEach(function(o){if(o!==rateInput)o.value=r});
-        document.querySelectorAll('.nt-rate-val').forEach(function(o){if(o!==rateVal)o.textContent=r+'x'});
-        if(st.playing&&!st.paused){
-          st.rate=r;
-          ttsRestart=true;
-          speechSynthesis.cancel();
-          setTimeout(function(){ttsRestart=false;speakNext()},150);
-        }
-      });
     });
-  }
-  attachNoteTts();
+    // per-sentence: tap to read once, 🔁 to loop
+    if(body){
+      body.querySelectorAll('.snt').forEach(function(sEl){
+        var si=parseInt(sEl.dataset.si);
+        sEl.querySelector('.snt-text').addEventListener('click',function(){playSentence(bar,si,false)});
+        sEl.querySelector('.snt-rep').addEventListener('click',function(e){
+          e.stopPropagation();
+          if(loopSt&&loopSt.bar===bar&&loopSt.si===si){stopLoop()}
+          else{playSentence(bar,si,true)}
+        });
+      });
+      // tap any word → pronounce + dictionary popup
+      body.querySelectorAll('.w').forEach(function(wEl){
+        wEl.addEventListener('click',function(e){e.stopPropagation();onWordClick(wEl.dataset.w)});
+      });
+    }
+  });
   var wg=document.getElementById('guide-weekly');
   wg.addEventListener('input',function(){D.guide.weeklyGoal[wk]=wg.value;debounce(function(){save();toast('已保存')},'guide_wg')});
 }
@@ -768,6 +955,10 @@ function initSummary(){
 loadData();
 renderSidebar();
 renderPage();
+// word dictionary popup events
+document.getElementById('wdic-close').addEventListener('click',hideDic);
+document.getElementById('wdic-mask').addEventListener('click',hideDic);
+document.getElementById('wdic-say').addEventListener('click',function(){if(wdicCur)speakWord(wdicCur,0.8)});
 </script>
 </body>
 </html>
