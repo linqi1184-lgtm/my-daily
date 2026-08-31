@@ -75,6 +75,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .note-history summary::before{content:'▸';margin-right:8px;color:var(--text2);transition:transform .2s}
 .note-history[open] summary::before{transform:rotate(90deg)}
 .note-body{padding:10px 12px;font-size:14px;white-space:pre-wrap;word-break:break-word;line-height:1.7;color:var(--text)}
+/* TTS bar */
+.tts-bar{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.tts-current{margin-top:8px;padding:10px 12px;background:var(--primary-bg);border-radius:8px;font-size:15px;line-height:1.7;display:none;color:var(--text);font-weight:500}
 .stat-box{flex:1;background:var(--card);border-radius:8px;padding:10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .stat-box .num{font-size:22px;font-weight:700}
 .stat-box .lbl{font-size:11px;color:var(--text2);margin-top:2px}
@@ -368,7 +371,9 @@ function renderGuide(){
   // Notes input (导游词笔记)
   html+='<div class="card"><div class="card-title">🎤 今日导游词笔记 <span class="badge" style="background:#f0f7eb;color:var(--success)" id="guide-notes-count">'+((today.notes||'').length)+' 字</span></div>';
   html+='<textarea id="guide-notes" placeholder="记录今天背的导游词内容，比如背了哪些景点、哪些段落...（自动保存）" style="width:100%;min-height:120px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;line-height:1.6;resize:vertical">'+esc(today.notes||'')+'</textarea>';
-  html+='<div style="font-size:12px;color:var(--text2);margin-top:6px">✍️ 边背边记，实时保存，历史笔记可在下方翻看</div></div>';
+  html+='<div class="tts-bar"><button class="btn btn-primary btn-sm" id="tts-play">▶️ 播放</button><button class="btn btn-sm" id="tts-stop" style="background:var(--border);color:var(--text)">⏹ 停止</button><span style="font-size:12px;color:var(--text2)">语速</span><input type="range" id="tts-rate" min="0.5" max="1.5" step="0.1" value="0.9" style="flex:1;min-width:90px"><span style="font-size:12px;color:var(--text2);min-width:34px;text-align:right" id="tts-rate-val">0.9x</span></div>';
+  html+='<div id="tts-current" class="tts-current"></div>';
+  html+='<div style="font-size:12px;color:var(--text2);margin-top:6px">✍️ 边背边记，自动保存 ｜ 🔊 把英文导游词粘贴进来，点「播放」逐句朗读，边听边学</div></div>';
   // Stats
   html+='<div class="novel-stats"><div class="stat-box"><div class="num" style="color:var(--primary)">'+(today.videos||0)+'</div><div class="lbl">今日视频</div></div><div class="stat-box"><div class="num" style="color:var(--success)">'+(today.questions||0)+'</div><div class="lbl">今日刷题</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+totalVideos+'</div><div class="lbl">总视频</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+totalQuestions+'</div><div class="lbl">总刷题</div></div></div>';
   // Weekly stats
@@ -399,6 +404,7 @@ function renderGuide(){
   return html;
 }
 function initGuide(){
+  if(window.speechSynthesis)speechSynthesis.cancel();
   var dk=dateKey();var wk=weekKey();
   var today=ensureGuideDaily(dk);
   var vInput=document.getElementById('guide-videos');
@@ -418,6 +424,89 @@ function initGuide(){
     if(notesCount)notesCount.textContent=notesArea.value.length+' 字';
     debounce(function(){save()},'guide_notes',600);
   });
+  // ---- TTS: read notes aloud sentence by sentence ----
+  var ttsPlaying=false,ttsPaused=false,ttsRestart=false,ttsSentences=[],ttsIdx=0;
+  var playBtn=document.getElementById('tts-play');
+  var stopBtn=document.getElementById('tts-stop');
+  var rateInput=document.getElementById('tts-rate');
+  var rateVal=document.getElementById('tts-rate-val');
+  var curEl=document.getElementById('tts-current');
+  if(!('speechSynthesis' in window)){
+    if(playBtn){playBtn.disabled=true;playBtn.style.opacity=.5}
+    if(curEl){curEl.style.display='block';curEl.textContent='当前浏览器不支持语音朗读'}
+  }else{
+    speechSynthesis.getVoices(); // warm up voice list (async on some browsers)
+    if(speechSynthesis.onvoiceschanged===null)speechSynthesis.onvoiceschanged=function(){};
+  }
+  function splitSentences(t){
+    var out=[];
+    t.replace(/\r/g,'').split(/\n+/).forEach(function(p){
+      p=p.trim();if(!p)return;
+      var s=p.match(/[^.!?\u3002\uff01\uff1f]+[.!?\u3002\uff01\uff1f]*/g);
+      if(s)s.forEach(function(x){x=x.trim();if(x)out.push(x)});
+    });
+    return out;
+  }
+  function pickVoice(){
+    var vs=speechSynthesis.getVoices();
+    var i;
+    for(i=0;i<vs.length;i++){if(/^en[-_]/i.test(vs[i].lang)&&/google|natural|samantha|daniel|aria|jenny|zira|male/i.test(vs[i].name))return vs[i]}
+    for(i=0;i<vs.length;i++){if(/^en[-_]/i.test(vs[i].lang))return vs[i]}
+    return null;
+  }
+  function showCurrent(s){
+    if(!curEl)return;
+    if(s){curEl.textContent=s;curEl.style.display='block'}
+    else{curEl.textContent='';curEl.style.display='none'}
+  }
+  function speakNext(){
+    if(ttsIdx>=ttsSentences.length){stopTts(true);return}
+    var s=ttsSentences[ttsIdx];
+    showCurrent(s);
+    var u=new SpeechSynthesisUtterance(s);
+    u.lang='en-US';
+    var v=pickVoice();if(v)u.voice=v;
+    u.rate=parseFloat(rateInput.value)||0.9;
+    u.onend=function(){if(ttsRestart)return;if(ttsPlaying){ttsIdx++;speakNext()}};
+    u.onerror=function(){if(ttsRestart)return;if(ttsPlaying){ttsIdx++;setTimeout(speakNext,80)}};
+    speechSynthesis.speak(u);
+  }
+  function startTts(){
+    var text=notesArea.value.trim();
+    if(!text){toast('请先在上方输入或粘贴导游词');return}
+    ttsSentences=splitSentences(text);
+    if(ttsSentences.length===0){toast('没有可朗读的内容');return}
+    speechSynthesis.cancel();
+    ttsIdx=0;ttsPlaying=true;ttsPaused=false;
+    playBtn.textContent='⏸ 暂停';
+    speakNext();
+  }
+  function stopTts(finished){
+    ttsPlaying=false;ttsPaused=false;
+    speechSynthesis.cancel();
+    playBtn.textContent='▶️ 播放';
+    if(finished){showCurrent('✅ 朗读完毕');setTimeout(function(){if(!ttsPlaying)showCurrent('')},2000)}
+    else showCurrent('');
+  }
+  if(playBtn){
+    playBtn.addEventListener('click',function(){
+      if(!ttsPlaying){startTts()}
+      else if(!ttsPaused){ttsPaused=true;speechSynthesis.pause();playBtn.textContent='▶️ 继续'}
+      else{ttsPaused=false;speechSynthesis.resume();playBtn.textContent='⏸ 暂停'}
+    });
+  }
+  if(stopBtn)stopBtn.addEventListener('click',function(){stopTts(false)});
+  if(rateInput){
+    rateInput.addEventListener('input',function(){
+      var r=Math.round(parseFloat(rateInput.value)*10)/10;
+      if(rateVal)rateVal.textContent=r+'x';
+      if(ttsPlaying&&!ttsPaused){
+        ttsRestart=true;
+        speechSynthesis.cancel();
+        setTimeout(function(){ttsRestart=false;speakNext()},150);
+      }
+    });
+  }
   var wg=document.getElementById('guide-weekly');
   wg.addEventListener('input',function(){D.guide.weeklyGoal[wk]=wg.value;debounce(function(){save();toast('已保存')},'guide_wg')});
 }
