@@ -68,6 +68,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .progress-info-row .val{font-weight:600}
 /* Novel */
 .novel-stats{display:flex;gap:8px;margin-bottom:12px}
+/* Guide notes history */
+.note-history{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden}
+.note-history summary{padding:10px 12px;font-size:14px;font-weight:600;cursor:pointer;background:var(--bg);display:flex;align-items:center;list-style:none}
+.note-history summary::-webkit-details-marker{display:none}
+.note-history summary::before{content:'▸';margin-right:8px;color:var(--text2);transition:transform .2s}
+.note-history[open] summary::before{transform:rotate(90deg)}
+.note-body{padding:10px 12px;font-size:14px;white-space:pre-wrap;word-break:break-word;line-height:1.7;color:var(--text)}
 .stat-box{flex:1;background:var(--card);border-radius:8px;padding:10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .stat-box .num{font-size:22px;font-weight:700}
 .stat-box .lbl{font-size:11px;color:var(--text2);margin-top:2px}
@@ -199,7 +206,8 @@ function ensureEnglish(dk){
   return D.english[dk];
 }
 function ensureGuideDaily(dk){
-  if(!D.guide.daily[dk])D.guide.daily[dk]={videos:0,questions:0};
+  if(!D.guide.daily[dk])D.guide.daily[dk]={videos:0,questions:0,notes:''};
+  if(D.guide.daily[dk].notes===undefined)D.guide.daily[dk].notes='';
   return D.guide.daily[dk];
 }
 // ===================== PAGE: EXERCISE =====================
@@ -357,6 +365,10 @@ function renderGuide(){
   html+='<div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;min-width:70px">📝 刷了题目</span><input type="number" id="guide-questions" min="0" value="'+(today.questions||0)+'" placeholder="题数" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit" /><span style="font-size:12px;color:var(--text2)">题</span></div>';
   html+='</div>';
   html+='<button class="btn btn-primary" id="guide-save-btn" style="width:100%">保存</button></div>';
+  // Notes input (导游词笔记)
+  html+='<div class="card"><div class="card-title">🎤 今日导游词笔记 <span class="badge" style="background:#f0f7eb;color:var(--success)" id="guide-notes-count">'+((today.notes||'').length)+' 字</span></div>';
+  html+='<textarea id="guide-notes" placeholder="记录今天背的导游词内容，比如背了哪些景点、哪些段落...（自动保存）" style="width:100%;min-height:120px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;line-height:1.6;resize:vertical">'+esc(today.notes||'')+'</textarea>';
+  html+='<div style="font-size:12px;color:var(--text2);margin-top:6px">✍️ 边背边记，实时保存，历史笔记可在下方翻看</div></div>';
   // Stats
   html+='<div class="novel-stats"><div class="stat-box"><div class="num" style="color:var(--primary)">'+(today.videos||0)+'</div><div class="lbl">今日视频</div></div><div class="stat-box"><div class="num" style="color:var(--success)">'+(today.questions||0)+'</div><div class="lbl">今日刷题</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+totalVideos+'</div><div class="lbl">总视频</div></div><div class="stat-box"><div class="num" style="color:#faad14">'+totalQuestions+'</div><div class="lbl">总刷题</div></div></div>';
   // Weekly stats
@@ -368,6 +380,21 @@ function renderGuide(){
   html+='<div class="card"><div class="card-title">本周统计</div>';
   html+='<div class="progress-info-row"><span>📺 本周视频</span><span class="val">'+weekVideos+' 个</span></div>';
   html+='<div class="progress-info-row"><span>📝 本周刷题</span><span class="val">'+weekQuestions+' 题</span></div>';
+  html+='</div>';
+  // Notes history (往回翻看背过的导游词)
+  var noteDays=Object.keys(D.guide.daily).filter(function(k){return (D.guide.daily[k].notes||'').trim().length>0}).sort().reverse();
+  html+='<div class="card"><div class="card-title">📜 导游词笔记历史 <span class="badge">'+noteDays.length+' 天</span></div>';
+  if(noteDays.length===0){
+    html+='<div style="color:var(--text2);text-align:center;padding:10px;font-size:13px">还没有笔记，今天背的导游词记在上面就会出现在这里</div>';
+  }else{
+    noteDays.forEach(function(k,i){
+      var dt=new Date(k);
+      var label=dt.getFullYear()+'年'+(dt.getMonth()+1)+'月'+dt.getDate()+'日 星期'+WEEKDAYS[dt.getDay()];
+      if(k===dk)label='今天 · '+label;
+      html+='<details class="note-history"'+(i===0?' open':'')+'><summary>'+esc(label)+'<span style="font-size:12px;color:var(--text2);margin-left:6px">'+(D.guide.daily[k].notes||'').trim().length+' 字</span></summary>';
+      html+='<div class="note-body">'+esc((D.guide.daily[k].notes||'').trim())+'</div></details>';
+    });
+  }
   html+='</div>';
   return html;
 }
@@ -383,6 +410,14 @@ function initGuide(){
     save();renderPage();toast('已保存');
   }
   saveBtn.addEventListener('click',saveToday);
+  // Notes real-time save
+  var notesArea=document.getElementById('guide-notes');
+  var notesCount=document.getElementById('guide-notes-count');
+  notesArea.addEventListener('input',function(){
+    today.notes=notesArea.value;
+    if(notesCount)notesCount.textContent=notesArea.value.length+' 字';
+    debounce(function(){save()},'guide_notes',600);
+  });
   var wg=document.getElementById('guide-weekly');
   wg.addEventListener('input',function(){D.guide.weeklyGoal[wk]=wg.value;debounce(function(){save();toast('已保存')},'guide_wg')});
 }
@@ -399,7 +434,7 @@ function dayHasData(dk){
     var en=D.english[dk];
     if((en.nc2&&(en.nc2.done||(en.nc2.count||0)>0))||(en.vocab&&(en.vocab.count||0)>0)||(en.movie&&(en.movie.done||(en.movie.movies&&en.movie.movies.length>0))))return true;
   }
-  if(D.guide&&D.guide.daily&&D.guide.daily[dk]&&((D.guide.daily[dk].videos||0)>0||(D.guide.daily[dk].questions||0)>0))return true;
+  if(D.guide&&D.guide.daily&&D.guide.daily[dk]&&(((D.guide.daily[dk].videos||0)>0||(D.guide.daily[dk].questions||0)>0)||((D.guide.daily[dk].notes||'').trim().length>0)))return true;
   return false;
 }
 function buildDayInfo(dk){
@@ -437,6 +472,12 @@ function buildDayInfo(dk){
   if(D.guide&&D.guide.daily&&D.guide.daily[dk]){
     var gv=D.guide.daily[dk].videos||0;var gq=D.guide.daily[dk].questions||0;
     if(gv>0||gq>0){hasAny=true;rows.push('<div class="ci-row"><span>🎫 英导学习</span><span class="v">'+gv+' 视频 / '+gq+' 题</span></div>')}
+    var gn=(D.guide.daily[dk].notes||'').trim();
+    if(gn.length>0){
+      hasAny=true;
+      var gnPreview=gn.length>40?gn.slice(0,40)+'…':gn;
+      rows.push('<div class="ci-row" style="flex-direction:column;align-items:flex-start"><span>🎤 导游词笔记（'+gn.length+' 字）</span><span style="font-size:12px;color:var(--text2);margin-top:2px;white-space:pre-wrap;word-break:break-word">'+esc(gnPreview)+'</span></div>');
+    }
   }
   if(!hasAny)return '<div class="cal-day-info"><div class="ci-title">'+fmtDateShort(dk)+' 无记录</div><div style="color:var(--text2)">这一天没有数据</div></div>';
   var d=new Date(dk);
@@ -446,7 +487,7 @@ function buildMonthStats(ym){
   var y=parseInt(ym.split('-')[0]);var m=parseInt(ym.split('-')[1]);
   var days=new Date(y,m,0).getDate();
   var activeDays=0,exDone=0,exTotal=0,enDone=0,essays=0,vocabTotal=0,movieMin=0,movieNames=[];
-  var guideVideos=0,guideQuestions=0;
+  var guideVideos=0,guideQuestions=0,guideNoteDays=0;
   var weightFirst=null,weightLast=null,weightCount=0;
   for(var d=1;d<=days;d++){
     var dk=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
@@ -463,7 +504,7 @@ function buildMonthStats(ym){
       enDone+=dEn;
       if(dEn>0||dEss>0||dVoc>0)hasData=true;
     }
-    if(D.guide&&D.guide.daily&&D.guide.daily[dk]){var gv2=D.guide.daily[dk].videos||0;var gq2=D.guide.daily[dk].questions||0;if(gv2>0||gq2>0){guideVideos+=gv2;guideQuestions+=gq2;hasData=true}}
+    if(D.guide&&D.guide.daily&&D.guide.daily[dk]){var gv2=D.guide.daily[dk].videos||0;var gq2=D.guide.daily[dk].questions||0;if(gv2>0||gq2>0){guideVideos+=gv2;guideQuestions+=gq2;hasData=true}if(((D.guide.daily[dk].notes||'').trim().length>0)){guideNoteDays++;hasData=true}}
     if(hasData)activeDays++;
   }
   var rows=[];
@@ -477,13 +518,14 @@ function buildMonthStats(ym){
   if(movieMin>0)rows.push('<div class="ss-row"><span>🎬 电影整理</span><span class="v">'+movieMin+' 分钟</span></div>');
   if(movieNames.length>0)rows.push('<div class="ss-row" style="flex-direction:column;align-items:flex-start"><span>🎬 看过的电影</span><span style="font-size:12px;color:#856404;margin-top:2px">'+esc(movieNames.join('、'))+'</span></div>');
   if(guideVideos>0||guideQuestions>0)rows.push('<div class="ss-row"><span>🎫 英导学习</span><span class="v">'+guideVideos+' 视频 / '+guideQuestions+' 题</span></div>');
+  if(guideNoteDays>0)rows.push('<div class="ss-row"><span>🎤 导游词笔记</span><span class="v">'+guideNoteDays+' 天</span></div>');
   if(activeDays===0)rows.push('<div style="color:var(--text2);text-align:center;padding:10px">本月暂无数据</div>');
   return '<div class="sum-stat">'+rows.join('')+'</div>';
 }
 function buildYearStats(y){
   var activeMonths=0,activeDays=0;
   var totalExDone=0,totalExTotal=0,totalEnDone=0,totalEssays=0,totalVocab=0,totalMovieMin=0;
-  var totalGuideVideos=0,totalGuideQuestions=0;
+  var totalGuideVideos=0,totalGuideQuestions=0,totalGuideNoteDays=0;
   var weightFirst=null,weightLast=null,weightCount=0;
   var allMovies=[];
   for(var m=1;m<=12;m++){
@@ -502,7 +544,7 @@ function buildYearStats(y){
         if(en.movie&&en.movie.movies){en.movie.movies.forEach(function(mv){totalMovieMin+=(mv.minutes||0);if(mv.name)allMovies.push(mv.name)})}
         hasData=true;
       }
-      if(D.guide&&D.guide.daily&&D.guide.daily[dk]){var gv3=D.guide.daily[dk].videos||0;var gq3=D.guide.daily[dk].questions||0;if(gv3>0||gq3>0){totalGuideVideos+=gv3;totalGuideQuestions+=gq3;hasData=true}}
+      if(D.guide&&D.guide.daily&&D.guide.daily[dk]){var gv3=D.guide.daily[dk].videos||0;var gq3=D.guide.daily[dk].questions||0;if(gv3>0||gq3>0){totalGuideVideos+=gv3;totalGuideQuestions+=gq3;hasData=true}if(((D.guide.daily[dk].notes||'').trim().length>0)){totalGuideNoteDays++;hasData=true}}
       if(hasData){monthDays++;activeDays++}
     }
     if(monthDays>0){activeMonths++}
@@ -519,6 +561,7 @@ function buildYearStats(y){
   if(totalMovieMin>0)rows.push('<div class="ss-row"><span>🎬 电影整理</span><span class="v">'+totalMovieMin+' 分钟</span></div>');
   if(allMovies.length>0)rows.push('<div class="ss-row" style="flex-direction:column;align-items:flex-start"><span>🎬 整理电影数</span><span style="font-size:12px;color:#856404;margin-top:2px">共 '+allMovies.length+' 部</span></div>');
   if(totalGuideVideos>0||totalGuideQuestions>0)rows.push('<div class="ss-row"><span>🎫 英导学习</span><span class="v">'+totalGuideVideos+' 视频 / '+totalGuideQuestions+' 题</span></div>');
+  if(totalGuideNoteDays>0)rows.push('<div class="ss-row"><span>🎤 导游词笔记</span><span class="v">'+totalGuideNoteDays+' 天</span></div>');
   if(activeDays===0)rows.push('<div style="color:var(--text2);text-align:center;padding:10px">本年暂无数据</div>');
   return '<div class="sum-stat">'+rows.join('')+'</div>';
 }
